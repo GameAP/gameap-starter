@@ -7,6 +7,7 @@
 
 #ifdef __linux__ 
 	#include <unistd.h>
+    #include <signal.h>
 #endif
 
 #include <stdlib.h>
@@ -66,26 +67,34 @@ void run(std::string command, std::string directory)
 
     size_t arg_start = command.find(' ');
     std::string exe = command.substr(0, arg_start);
-    std::string args = command.substr(arg_start+1, command.size());
-
-    ulong pid;
+    std::string args = command.substr(arg_start, command.size());
+    
+    unsigned long pid;
 
 	#ifdef __linux__
+        // args = directory + "/" + exe + " " + args;
+
+        // command = std::string(PROC_SHELL) + " " + std::string(SHELL_PREF) + " " + command;
+
         chdir(&directory[0]);
 		child c = boost::process::execute(
 			bind_stdout(sink),
 			bind_stderr(sink),
 			bind_stdin(source),
-			boost::process::initializers::run_exe(exe),
-			start_in_dir(directory),
-			boost::process::initializers::set_cmd_line(args),
+            start_in_dir(directory),
+			// boost::process::initializers::run_exe(exe),
+			// boost::process::initializers::set_cmd_line(args),
+            boost::process::initializers::run_exe(shell_path()),
+            boost::process::initializers::set_args(std::vector<std::string>{PROC_SHELL, SHELL_PREF, command}),
+            // boost::process::initializers::set_args(std::vector<std::string>{command}),
+            // boost::process::initializers::set_cmd_line(args),
 			boost::process::initializers::inherit_env(),
 			boost::process::initializers::throw_on_error()
 		);
-        std::cout << "Pid: " << c.pid << std::endl;
         pid = c.pid;
         
 	#elif _WIN32
+        args = directory + "\\" + exe + " " + args;
 		wchar_t* szArgs = new wchar_t[strlen(args.c_str()) + 1];
 		mbstowcs(szArgs, args.c_str(), strlen(args.c_str()) + 1);
 
@@ -122,7 +131,7 @@ void run(std::string command, std::string directory)
     pidfile.close();
 
     #ifdef _WIN32
-        ulong exit = 0;
+        unsigned long exit = 0;
     #endif
 
     while(true) {
@@ -130,7 +139,6 @@ void run(std::string command, std::string directory)
             GetExitCodeProcess(c.proc_info.hProcess, &exit);
 
             if (exit != STILL_ACTIVE && exit != 4294967295) {
-                coninput.close();
                 break;
             }
         #endif
@@ -142,7 +150,13 @@ void run(std::string command, std::string directory)
         if (input_line != "") {
             if (input_line == "GAS_EXIT") {
 				coninput.close();
-				terminate(c);
+
+                #ifdef __linux__ 
+                    kill(0, SIGINT);
+                #elif _WIN32
+                    terminate(c);
+                #endif
+                
                 break;
             }
             
@@ -198,19 +212,20 @@ int main(int argc, char *argv[])
     if (type == "start") {
 
 		#ifdef __linux__
-            try {
-                boost::process::execute(
-                    boost::process::initializers::close_stdout(),
-                    boost::process::initializers::close_stderr(),
-                    boost::process::initializers::close_stdin(),
-                    boost::process::initializers::run_exe(shell_path()),
-                    boost::process::initializers::set_args(std::vector<std::string>{PROC_SHELL, SHELL_PREF, std::string(argv[0]) + " -t run -d " + directory + " -c " + command}),
-                    boost::process::initializers::inherit_env(),
-                    boost::process::initializers::throw_on_error()
-                );
-            } catch (boost::system::system_error &e) {
-				std::cerr << "Exec error: " << e.what() << std::endl;
-			}
+            pid_t pid = fork();
+
+            if (pid == -1) {
+                std::cerr << "Fork error" << std::endl;
+                return 1;
+            }
+
+            if (pid == 0) {
+                run(command, directory);
+            } else {
+                close(STDIN_FILENO);
+                close(STDOUT_FILENO);
+                close(STDERR_FILENO);
+            }
 		#elif _WIN32
 			try {
 				std::string cmd = "/c " + std::string(argv[0]) + " -t run -d " + directory + " -c " + command;
@@ -231,12 +246,13 @@ int main(int argc, char *argv[])
 			} catch (boost::system::system_error &e) {
 				std::cerr << "Exec error: " << e.what() << std::endl;
 			}
-		#endif
 
-        fclose(stdin);
-        fclose(stdout);
-        fclose(stderr);
+            close(STDIN_FILENO);
+            close(STDOUT_FILENO);
+            close(STDERR_FILENO);
+		#endif
     }
+#ifdef _WIN32
     else if (type == "run") {
         try {
             run(command, directory);
@@ -244,6 +260,7 @@ int main(int argc, char *argv[])
             std::cerr << "Run error: " << e.what() << std::endl;
         }
     }
+#endif
     else {
         show_help();
     }
