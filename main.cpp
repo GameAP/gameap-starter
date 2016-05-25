@@ -1,5 +1,7 @@
 #include <string> 
-#include <vector> 
+#include <vector>
+
+#include <thread>
 #include <iostream>
 
 #include <stdio.h>
@@ -91,6 +93,7 @@ void run(std::string command, std::string directory)
 			boost::process::initializers::inherit_env(),
 			boost::process::initializers::throw_on_error()
 		);
+        std::cout << "Pid: " << c.pid << std::endl;
         pid = c.pid;
         
 	#elif _WIN32
@@ -130,14 +133,21 @@ void run(std::string command, std::string directory)
     pidfile << pid;
     pidfile.close();
 
-    #ifdef _WIN32
+    #ifdef __linux__
+        bool exited = false;
+        std::thread thr{[c](bool *exited) {
+            boost::system::error_code ec;
+            wait_for_exit(c, ec);
+            *exited = true;
+        }, &exited};
+    #elif _WIN32
         unsigned long exit = 0;
     #endif
-
+    
     while(true) {
-        #ifdef _linux_
-            if (kill(pid, 0) != 0) {
-                break;
+        #ifdef __linux__
+            if (exited) {
+                kill(0, SIGINT);
             }
         #elif _WIN32
             GetExitCodeProcess(c.proc_info.hProcess, &exit);
