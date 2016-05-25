@@ -135,7 +135,11 @@ void run(std::string command, std::string directory)
     #endif
 
     while(true) {
-        #ifdef _WIN32
+        #ifdef _linux_
+            if (kill(pid, 0) != 0) {
+                break;
+            }
+        #elif _WIN32
             GetExitCodeProcess(c.proc_info.hProcess, &exit);
 
             if (exit != STILL_ACTIVE && exit != 4294967295) {
