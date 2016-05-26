@@ -10,6 +10,10 @@
 #ifdef __linux__ 
     #include <unistd.h>
     #include <signal.h>
+    
+    #include <pwd.h>
+#elif _WIN32
+	#include <process.h>
 #endif
 
 #include <stdlib.h>
@@ -114,6 +118,7 @@ void run()
             show_window(SW_HIDE)
         );
         pid = c.proc_info.dwProcessId;
+		// std::cout << "PID: " << pid << std::endl;
     #endif
 
     file_descriptor_sink sink2(pin.sink, boost::iostreams::close_handle);
@@ -237,6 +242,13 @@ int main(int argc, char *argv[])
     if (type == "start") {
 
         #ifdef __linux__
+            passwd * pwd = getpwnam(&user[0]);
+
+            if (pwd == NULL) {
+                std::cerr << "Invalid user" << std::endl;
+                return 1;
+            }
+            
             pid_t pid = fork();
 
             if (pid == -1) {
@@ -245,6 +257,11 @@ int main(int argc, char *argv[])
             }
 
             if (pid == 0) {
+                if (user != "") {
+                    setgid(pwd->pw_gid);
+                    setuid(pwd->pw_uid);
+                }
+                
                 run();
             } else {
                 close(STDIN_FILENO);
@@ -273,9 +290,9 @@ int main(int argc, char *argv[])
                 std::cerr << "Exec error: " << e.what() << std::endl;
             }
             
-            close(STDIN_FILENO);
-            close(STDOUT_FILENO);
-            close(STDERR_FILENO);
+            fclose(stdin);
+            fclose(stdout);
+            fclose(stderr);
         #endif
     }
     else if (type == "stop") {
@@ -292,18 +309,15 @@ int main(int argc, char *argv[])
         std::string stpid;
         getline(pidfile, stpid);
 
-        pid_t pid = atoi(&stpid[0]);
+        unsigned int pid = atoi(&stpid[0]);
 
         #ifdef __linux__
             if (kill(pid, SIGTERM) != 0) {
                 std::cout << "Stop error" << std::endl;
             }
         #elif _WIN32
-            std::string cmd_kill_str = "taskkill /PID " + jroot["pid"].asString();
-			wchar_t* cmd_kill = new wchar_t[strlen(cmd_kill_str.c_str()) + 1];
-			mbstowcs(cmd_kill, cmd_kill_str.c_str(), strlen(cmd_kill_str.c_str()) + 1);
-
-			::_tsystem(cmd_kill);
+            std::string cmd_kill_str = "taskkill /PID " + stpid;
+			system(&cmd_kill_str[0]);
         #endif
 
         pidfile.close();
