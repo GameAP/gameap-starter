@@ -124,6 +124,7 @@ void run(std::string command, std::string directory)
     std::string input_line;
 
     // Create and trunc stdin.txt
+    std::fstream coninput;
     std::ofstream conout;
     conout.open(GAS_INPUT_FILE, std::ofstream::out | std::ofstream::trunc);
     conout.close();
@@ -158,7 +159,6 @@ void run(std::string command, std::string directory)
             }
         #endif
         
-        std::fstream coninput;
         coninput.open(GAS_INPUT_FILE, std::ifstream::in);
         getline(coninput, input_line);
         
@@ -280,6 +280,23 @@ int main(int argc, char *argv[])
             close(STDOUT_FILENO);
             close(STDERR_FILENO);
         #endif
+    }
+    else if (type == "stop") {
+        boost::filesystem::current_path(&directory[0]);
+
+        std::fstream pidfile;
+        pidfile.open(GAS_PID_FILE, std::ifstream::in);
+
+        std::string stpid;
+        getline(pidfile, stpid);
+
+        pid_t pid = atoi(&stpid[0]);
+        if (kill(pid, SIGTERM) != 0) {
+            std::cout << "Stop error" << std::endl;
+        }
+
+        pidfile.close();
+        boost::filesystem::remove(GAS_PID_FILE);
     }
 #ifdef _WIN32
     else if (type == "run") {
