@@ -61,10 +61,10 @@ void show_help()
     std::cout << "Parameters\n";
     std::cout << "-t <type>\n";
     std::cout << "-d <work dir>\n";
-    std::cout << "-c <command>  (example 'hlds.exe -game valve +ip 127.0.0.1 +port 27015 +map crossfire')\n\n";
+    std::cout << "-c <command>  (example 'hlds_run -game valve +ip 127.0.0.1 +port 27015 +map crossfire')\n\n";
 
     std::cout << "Examples:\n";
-    std::cout << "starter -t start -d /home/servers/hlds -c \"hlds.exe -game valve +ip 127.0.0.1 +port 27015 +map crossfire\"\n";
+    std::cout << "./starter -t start -d /home/servers/hlds -c \"hlds_run -game valve +ip 127.0.0.1 +port 27015 +map crossfire\"\n";
 }
 
 void run()
@@ -79,14 +79,10 @@ void run()
     size_t arg_start = command.find(' ');
     std::string exe = command.substr(0, arg_start);
     std::string args = command.substr(arg_start, command.size());
-    
+
     unsigned long pid;
 
     #ifdef __linux__
-        // args = directory + "/" + exe + " " + args;
-
-        // command = std::string(PROC_SHELL) + " " + std::string(SHELL_PREF) + " " + command;
-
         chdir(&directory[0]);
         child c = boost::process::execute(
             bind_stdout(sink),
@@ -99,7 +95,6 @@ void run()
             boost::process::initializers::inherit_env(),
             boost::process::initializers::throw_on_error()
         );
-        // std::cout << "Pid: " << c.pid << std::endl;
         pid = c.pid;
         
     #elif _WIN32
@@ -118,8 +113,6 @@ void run()
             boost::process::initializers::throw_on_error(),
             show_window(SW_HIDE)
         );
-
-        // std::cout << "Pid: " << c.proc_info.dwProcessId << std::endl;
         pid = c.proc_info.dwProcessId;
     #endif
 
@@ -140,64 +133,68 @@ void run()
     pidfile << pid;
     pidfile.close();
 
-    #ifdef __linux__
-        bool exited = false;
-        std::thread thr{[c](bool *exited) {
-            boost::system::error_code ec;
-            wait_for_exit(c, ec);
-            *exited = true;
-        }, &exited};
-    #elif _WIN32
-        unsigned long exit = 0;
-    #endif
-    
-    while(true) {
+    if (no_stdin) {
+        wait_for_exit(c);
+    } else {
         #ifdef __linux__
-            if (exited) {
-                kill(0, SIGINT);
-            }
+            bool exited = false;
+            std::thread thr{[c](bool *exited) {
+                boost::system::error_code ec;
+                wait_for_exit(c, ec);
+                *exited = true;
+            }, &exited};
         #elif _WIN32
-            GetExitCodeProcess(c.proc_info.hProcess, &exit);
-
-            if (exit != STILL_ACTIVE && exit != 4294967295) {
-                break;
-            }
+            unsigned long exit = 0;
         #endif
-        
-        coninput.open(GAS_INPUT_FILE, std::ifstream::in);
-        getline(coninput, input_line);
-        
-        if (input_line != "") {
-            if (input_line == "GAS_EXIT") {
-                coninput.close();
-
-                #ifdef __linux__ 
+    
+        while(true) {
+            #ifdef __linux__
+                if (exited) {
                     kill(0, SIGINT);
-                #elif _WIN32
-                    terminate(c);
-                #endif
-                
-                break;
-            }
+                }
+            #elif _WIN32
+                GetExitCodeProcess(c.proc_info.hProcess, &exit);
+
+                if (exit != STILL_ACTIVE && exit != 4294967295) {
+                    break;
+                }
+            #endif
             
-            os << input_line << std::endl;
+            coninput.open(GAS_INPUT_FILE, std::ifstream::in);
+            getline(coninput, input_line);
+            
+            if (input_line != "") {
+                if (input_line == "GAS_EXIT") {
+                    coninput.close();
 
-            conout.open(GAS_INPUT_FILE, std::ofstream::out | std::ofstream::trunc);
-            conout.close();
+                    #ifdef __linux__ 
+                        kill(0, SIGINT);
+                    #elif _WIN32
+                        terminate(c);
+                    #endif
+                    
+                    break;
+                }
+                
+                os << input_line << std::endl;
+
+                conout.open(GAS_INPUT_FILE, std::ofstream::out | std::ofstream::trunc);
+                conout.close();
+            }
+            else {
+                // std::cout << "input line empty " << std::endl;
+            }
+
+            coninput.close();
+
+            #ifdef __linux__ 
+                sleep(1);
+            #elif _WIN32
+                Sleep(1000);
+            #endif
         }
-        else {
-            // std::cout << "input line empty " << std::endl;
-        }
-
-        coninput.close();
-
-        #ifdef __linux__ 
-            sleep(1);
-        #elif _WIN32
-            Sleep(1000);
-        #endif
-    };
-
+    }
+    
     // wait_for_exit(c);
 }
 
