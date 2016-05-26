@@ -287,6 +287,11 @@ int main(int argc, char *argv[])
         std::fstream pidfile;
         pidfile.open(GAS_PID_FILE, std::ifstream::in);
 
+        if (!pidfile.good()) {
+            std::cerr << "PID file open error" << std::endl;
+            return 1;
+        }
+
         std::string stpid;
         getline(pidfile, stpid);
 
