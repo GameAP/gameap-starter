@@ -291,10 +291,18 @@ int main(int argc, char *argv[])
         getline(pidfile, stpid);
 
         pid_t pid = atoi(&stpid[0]);
-        
-        if (kill(pid, SIGTERM) != 0) {
-            std::cout << "Stop error" << std::endl;
-        }
+
+        #ifdef __linux__
+            if (kill(pid, SIGTERM) != 0) {
+                std::cout << "Stop error" << std::endl;
+            }
+        #elif _WIN32
+            std::string cmd_kill_str = "taskkill /PID " + jroot["pid"].asString();
+			wchar_t* cmd_kill = new wchar_t[strlen(cmd_kill_str.c_str()) + 1];
+			mbstowcs(cmd_kill, cmd_kill_str.c_str(), strlen(cmd_kill_str.c_str()) + 1);
+
+			::_tsystem(cmd_kill);
+        #endif
 
         pidfile.close();
         boost::filesystem::remove(GAS_PID_FILE);
