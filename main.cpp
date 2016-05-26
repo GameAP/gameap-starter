@@ -36,6 +36,11 @@ using namespace boost::process;
 using namespace boost::process::initializers;
 using namespace boost::iostreams;
 
+std::string type        = "";
+std::string command     = "";
+std::string directory   = "";
+std::string user        = "";
+
 bool no_stdin   = false;
 bool no_stdout  = false;
 
@@ -62,7 +67,7 @@ void show_help()
     std::cout << "starter -t start -d /home/servers/hlds -c \"hlds.exe -game valve +ip 127.0.0.1 +port 27015 +map crossfire\"\n";
 }
 
-void run(std::string command, std::string directory)
+void run()
 {
     boost::filesystem::current_path(&directory[0]);
     
@@ -198,11 +203,6 @@ void run(std::string command, std::string directory)
 
 int main(int argc, char *argv[])
 {
-    std::string type        = "";
-    std::string command     = "";
-    std::string directory   = "";
-    std::string user        = "";
-
     for (int i = 0; i < argc - 1; i++) {
         if (std::string(argv[i]) == "-t") {
             type = argv[i + 1];
@@ -248,7 +248,7 @@ int main(int argc, char *argv[])
             }
 
             if (pid == 0) {
-                run(command, directory);
+                run();
             } else {
                 close(STDIN_FILENO);
                 close(STDOUT_FILENO);
@@ -291,6 +291,7 @@ int main(int argc, char *argv[])
         getline(pidfile, stpid);
 
         pid_t pid = atoi(&stpid[0]);
+        
         if (kill(pid, SIGTERM) != 0) {
             std::cout << "Stop error" << std::endl;
         }
@@ -301,7 +302,7 @@ int main(int argc, char *argv[])
 #ifdef _WIN32
     else if (type == "run") {
         try {
-            run(command, directory);
+            run();
         } catch (boost::system::system_error &e) {
             std::cerr << "Run error: " << e.what() << std::endl;
         }
