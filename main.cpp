@@ -8,7 +8,7 @@
 #include <sys/types.h>
 
 #ifdef __linux__ 
-	#include <unistd.h>
+    #include <unistd.h>
     #include <signal.h>
 #endif
 
@@ -36,31 +36,35 @@ using namespace boost::process;
 using namespace boost::process::initializers;
 using namespace boost::iostreams;
 
+bool no_stdin   = false;
+bool no_stdout  = false;
+
+
 void show_help()
 {
-	std::cout << "**************************************\n";
-	std::cout << "*     Welcome to GameAP Starter      *\n";
-	std::cout << "**************************************\n\n";
+    std::cout << "**************************************\n";
+    std::cout << "*     Welcome to GameAP Starter      *\n";
+    std::cout << "**************************************\n\n";
 
-	std::cout << "Program created by NiK \n";
-	std::cout << "Site: http://www.gameap.ru \n";
-	std::cout << "Skype: kuznets007 \n\n";
+    std::cout << "Program created by NiK \n";
+    std::cout << "Site: http://www.gameap.ru \n";
+    std::cout << "Skype: kuznets007 \n\n";
     
-	std::cout << "Version: 0.1\n";
+    std::cout << "Version: 0.1\n";
     std::cout << "Build date: " << __DATE__ << " " << __TIME__ << std::endl << std::endl;
 
-	std::cout << "Parameters\n";
-	std::cout << "-t <type>\n";
-	std::cout << "-d <work dir>\n";
-	std::cout << "-c <command>  (example 'hlds.exe -game valve +ip 127.0.0.1 +port 27015 +map crossfire')\n\n";
+    std::cout << "Parameters\n";
+    std::cout << "-t <type>\n";
+    std::cout << "-d <work dir>\n";
+    std::cout << "-c <command>  (example 'hlds.exe -game valve +ip 127.0.0.1 +port 27015 +map crossfire')\n\n";
 
-	std::cout << "Examples:\n";
-	std::cout << "starter -t start -d /home/servers/hlds -c \"hlds.exe -game valve +ip 127.0.0.1 +port 27015 +map crossfire\"\n";
+    std::cout << "Examples:\n";
+    std::cout << "starter -t start -d /home/servers/hlds -c \"hlds.exe -game valve +ip 127.0.0.1 +port 27015 +map crossfire\"\n";
 }
 
 void run(std::string command, std::string directory)
 {
-	boost::filesystem::current_path(&directory[0]);
+    boost::filesystem::current_path(&directory[0]);
     
     file_descriptor_sink sink(GAS_OUTPUT_FILE);
 
@@ -73,49 +77,46 @@ void run(std::string command, std::string directory)
     
     unsigned long pid;
 
-	#ifdef __linux__
+    #ifdef __linux__
         // args = directory + "/" + exe + " " + args;
 
         // command = std::string(PROC_SHELL) + " " + std::string(SHELL_PREF) + " " + command;
 
         chdir(&directory[0]);
-		child c = boost::process::execute(
-			bind_stdout(sink),
-			bind_stderr(sink),
-			bind_stdin(source),
+        child c = boost::process::execute(
+            bind_stdout(sink),
+            bind_stderr(sink),
+            bind_stdin(source),
             start_in_dir(directory),
-			// boost::process::initializers::run_exe(exe),
-			// boost::process::initializers::set_cmd_line(args),
             boost::process::initializers::run_exe(shell_path()),
             boost::process::initializers::set_args(std::vector<std::string>{PROC_SHELL, SHELL_PREF, command}),
-            // boost::process::initializers::set_args(std::vector<std::string>{command}),
-            // boost::process::initializers::set_cmd_line(args),
-			boost::process::initializers::inherit_env(),
-			boost::process::initializers::throw_on_error()
-		);
-        std::cout << "Pid: " << c.pid << std::endl;
+
+            boost::process::initializers::inherit_env(),
+            boost::process::initializers::throw_on_error()
+        );
+        // std::cout << "Pid: " << c.pid << std::endl;
         pid = c.pid;
         
-	#elif _WIN32
+    #elif _WIN32
         args = directory + "\\" + exe + " " + args;
-		wchar_t* szArgs = new wchar_t[strlen(args.c_str()) + 1];
-		mbstowcs(szArgs, args.c_str(), strlen(args.c_str()) + 1);
+        wchar_t* szArgs = new wchar_t[strlen(args.c_str()) + 1];
+        mbstowcs(szArgs, args.c_str(), strlen(args.c_str()) + 1);
 
-		child c = boost::process::execute(
-			bind_stdout(sink),
-			bind_stderr(sink),
-			bind_stdin(source),
-			run_exe(exe),
+        child c = boost::process::execute(
+            bind_stdout(sink),
+            bind_stderr(sink),
+            bind_stdin(source),
+            run_exe(exe),
             boost::process::initializers::set_cmd_line(szArgs),
-			start_in_dir(directory),
-			boost::process::initializers::inherit_env(),
-			boost::process::initializers::throw_on_error(),
-			show_window(SW_HIDE)
-		);
+            start_in_dir(directory),
+            boost::process::initializers::inherit_env(),
+            boost::process::initializers::throw_on_error(),
+            show_window(SW_HIDE)
+        );
 
-		std::cout << "Pid: " << c.proc_info.dwProcessId << std::endl;
+        // std::cout << "Pid: " << c.proc_info.dwProcessId << std::endl;
         pid = c.proc_info.dwProcessId;
-	#endif
+    #endif
 
     file_descriptor_sink sink2(pin.sink, boost::iostreams::close_handle);
     boost::iostreams::stream<boost::iostreams::file_descriptor_sink> os(sink2);
@@ -163,7 +164,7 @@ void run(std::string command, std::string directory)
         
         if (input_line != "") {
             if (input_line == "GAS_EXIT") {
-				coninput.close();
+                coninput.close();
 
                 #ifdef __linux__ 
                     kill(0, SIGINT);
@@ -185,11 +186,11 @@ void run(std::string command, std::string directory)
 
         coninput.close();
 
-		#ifdef __linux__ 
-			sleep(1);
-		#elif _WIN32
-			Sleep(1000);
-		#endif
+        #ifdef __linux__ 
+            sleep(1);
+        #elif _WIN32
+            Sleep(1000);
+        #endif
     };
 
     // wait_for_exit(c);
@@ -197,35 +198,48 @@ void run(std::string command, std::string directory)
 
 int main(int argc, char *argv[])
 {
-    std::string type		= "";
-	std::string command		= "";
-	std::string directory	= "";
+    std::string type        = "";
+    std::string command     = "";
+    std::string directory   = "";
+    std::string user        = "";
 
     for (int i = 0; i < argc - 1; i++) {
-		if (std::string(argv[i]) == "-t") {
-			type = argv[i + 1];
-			i++;
-		}
-		else if (std::string(argv[i]) == "-d") {
-			directory = argv[i + 1];
-			i++;
-		}
+        if (std::string(argv[i]) == "-t") {
+            type = argv[i + 1];
+            i++;
+        }
+        else if (std::string(argv[i]) == "-d") {
+            directory = argv[i + 1];
+            i++;
+        }
+        else if (std::string(argv[i]) == "-u") {
+            user = argv[i + 1];
+            i++;
+        }
+        else if (std::string(argv[i]) == "--disable-stdin") {
+            no_stdin = true;
+            i++;
+        }
+        else if (std::string(argv[i]) == "--disable-stdout") {
+            no_stdout = true;
+            i++;
+        }
         else if (std::string(argv[i]) == "-c") {
-			while (i < argc - 1) {
-				command = (command == "") ? command + argv[i + 1] : command + " " + argv[i + 1];
-				i++;
-			}
+            while (i < argc - 1) {
+                command = (command == "") ? command + argv[i + 1] : command + " " + argv[i + 1];
+                i++;
+            }
 
-			i++;
-		}
-		else {
-			// ...
-		}
-	}
+            i++;
+        }
+        else {
+            // ...
+        }
+    }
     
     if (type == "start") {
 
-		#ifdef __linux__
+        #ifdef __linux__
             pid_t pid = fork();
 
             if (pid == -1) {
@@ -240,31 +254,32 @@ int main(int argc, char *argv[])
                 close(STDOUT_FILENO);
                 close(STDERR_FILENO);
             }
-		#elif _WIN32
-			try {
-				std::string cmd = "/c " + std::string(argv[0]) + " -t run -d " + directory + " -c " + command;
+        #elif _WIN32
+            
+            try {
+                std::string cmd = "/c " + std::string(argv[0]) + " -t run -d " + directory + " -c " + command;
 
-				wchar_t* szCmdline = new wchar_t[strlen(cmd.c_str()) + 1];
-				mbstowcs(szCmdline, cmd.c_str(), strlen(cmd.c_str()) + 1);
+                wchar_t* szCmdline = new wchar_t[strlen(cmd.c_str()) + 1];
+                mbstowcs(szCmdline, cmd.c_str(), strlen(cmd.c_str()) + 1);
 
-				boost::process::execute(
-					boost::process::initializers::close_stdout(),
-					boost::process::initializers::close_stderr(),
-					boost::process::initializers::close_stdin(),
-					boost::process::initializers::run_exe(shell_path()),
-					boost::process::initializers::set_cmd_line(szCmdline),
-					boost::process::initializers::inherit_env(),
-					boost::process::initializers::throw_on_error(),
-					show_window(SW_HIDE)
-				);
-			} catch (boost::system::system_error &e) {
-				std::cerr << "Exec error: " << e.what() << std::endl;
-			}
-
+                boost::process::execute(
+                    boost::process::initializers::close_stdout(),
+                    boost::process::initializers::close_stderr(),
+                    boost::process::initializers::close_stdin(),
+                    boost::process::initializers::run_exe(shell_path()),
+                    boost::process::initializers::set_cmd_line(szCmdline),
+                    boost::process::initializers::inherit_env(),
+                    boost::process::initializers::throw_on_error(),
+                    show_window(SW_HIDE)
+                );
+            } catch (boost::system::system_error &e) {
+                std::cerr << "Exec error: " << e.what() << std::endl;
+            }
+            
             close(STDIN_FILENO);
             close(STDOUT_FILENO);
             close(STDERR_FILENO);
-		#endif
+        #endif
     }
 #ifdef _WIN32
     else if (type == "run") {
