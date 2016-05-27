@@ -301,90 +301,89 @@ int main(int argc, char *argv[])
 			si.dwFlags = STARTF_USESTDHANDLES | STARTF_USESHOWWINDOW;
 			si.wShowWindow = SW_HIDE;
             
-            try {
+            if (user != "" && upassword != "") {
+                /*
+                if (!OpenProcessToken(
+                    GetCurrentProcess(), 
+                    TOKEN_QUERY | TOKEN_ADJUST_PRIVILEGES,
+                    &hUserToken
+                )) {
+                    std::cerr << "OpenProcessToken error: " << GetLastError() << std::endl;
+                    return 1;
+                }
 
-				if (user != "" && upassword != "") {
-					/*
-					if (!OpenProcessToken(
-						GetCurrentProcess(), 
-						TOKEN_QUERY | TOKEN_ADJUST_PRIVILEGES,
-						&hUserToken
-					)) {
-						std::cerr << "OpenProcessToken error: " << GetLastError() << std::endl;
-						return 1;
-					}
+                if (!LookupPrivilegeValue(
+                    NULL,SE_TCB_NAME,
+                    &tp.Privileges[0].Luid
+                )) {
+                    std::cerr << "LookupPrivilegeValue error: " << GetLastError() << std::endl;
+                    return 1;
+                }
 
-					if (!LookupPrivilegeValue(
-						NULL,SE_TCB_NAME,
-						&tp.Privileges[0].Luid
-					)) {
-						std::cerr << "LookupPrivilegeValue error: " << GetLastError() << std::endl;
-						return 1;
-					}
+                tp.PrivilegeCount = 1;
+                tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+                if (!AdjustTokenPrivileges(hUserToken, FALSE, &tp, 0, NULL, 0)) {
+                    std::cerr << "AdjustTokenPrivileges error: " << GetLastError() << std::endl;
+                    return 1;
+                }
+                */
 
-					tp.PrivilegeCount = 1;
-					tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
-					if (!AdjustTokenPrivileges(hUserToken, FALSE, &tp, 0, NULL, 0)) {
-						std::cerr << "AdjustTokenPrivileges error: " << GetLastError() << std::endl;
-						return 1;
-					}
-					*/
-
-					if (!LogonUser(
-						szUser,
-						NULL,
-						szPassword,
-						LOGON32_LOGON_INTERACTIVE,
-						LOGON32_PROVIDER_DEFAULT,
-						&hUserToken
-					)) {
-						std::cerr << "LogonUser error: " << GetLastError() << std::endl;
-						return 1;
-					}
-
-					/*
-					if (!ImpersonateLoggedOnUser(hUserToken)) {
-						std::cerr << "ImpersonateLoggedOnUser error: " << GetLastError() << std::endl;
-						return 1;
-					}
-					*/
-
-					if (!CreateProcessAsUser(
-						hUserToken,
-						NULL,
-						szCmdline,
-						NULL,
-						NULL,
-						FALSE,
-						CREATE_NEW_CONSOLE,
-						NULL,
-						NULL,
-						&si,
-						&pi
-					)) {
-						std::cerr << "CreateProcessAsUser error: " << GetLastError() << std::endl;
-						return 1;
-					}
-				}
-				else {
-					if (!CreateProcess(
-						NULL,
-						szCmdline,
-						NULL,
-						NULL,
-						FALSE,
-						CREATE_NEW_CONSOLE,
-						NULL,
-						NULL,
-						&si,
-						&pi
-					)) {
-						std::cerr << "CreateProcess error: " << GetLastError() << std::endl;
-						return 1;
-					}
-				}
+                if (!LogonUser(
+                    szUser,
+                    NULL,
+                    szPassword,
+                    LOGON32_LOGON_INTERACTIVE,
+                    LOGON32_PROVIDER_DEFAULT,
+                    &hUserToken
+                )) {
+                    std::cerr << "LogonUser error: " << GetLastError() << std::endl;
+                    return 1;
+                }
 
                 /*
+                if (!ImpersonateLoggedOnUser(hUserToken)) {
+                    std::cerr << "ImpersonateLoggedOnUser error: " << GetLastError() << std::endl;
+                    return 1;
+                }
+                */
+
+                if (!CreateProcessAsUser(
+                    hUserToken,
+                    NULL,
+                    szCmdline,
+                    NULL,
+                    NULL,
+                    FALSE,
+                    CREATE_NEW_CONSOLE,
+                    NULL,
+                    NULL,
+                    &si,
+                    &pi
+                )) {
+                    std::cerr << "CreateProcessAsUser error: " << GetLastError() << std::endl;
+                    return 1;
+                }
+            }
+            else {
+                if (!CreateProcess(
+                    NULL,
+                    szCmdline,
+                    NULL,
+                    NULL,
+                    FALSE,
+                    CREATE_NEW_CONSOLE,
+                    NULL,
+                    NULL,
+                    &si,
+                    &pi
+                )) {
+                    std::cerr << "CreateProcess error: " << GetLastError() << std::endl;
+                    return 1;
+                }
+            }
+
+            /*
+            try {
                 boost::process::execute(
                     boost::process::initializers::close_stdout(),
                     boost::process::initializers::close_stderr(),
@@ -395,10 +394,10 @@ int main(int argc, char *argv[])
                     boost::process::initializers::throw_on_error(),
                     show_window(SW_HIDE)
                 );
-                */
             } catch (boost::system::system_error &e) {
                 std::cerr << "Exec error: " << e.what() << std::endl;
             }
+            */
 
             CloseHandle(hUserToken);
             CloseHandle(pi.hProcess);
