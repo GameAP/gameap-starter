@@ -44,6 +44,7 @@ std::string type        = "";
 std::string command     = "";
 std::string directory   = "";
 std::string user        = "";
+std::string upassword   = "";
 
 bool no_stdin   = false;
 bool no_stdout  = false;
@@ -118,7 +119,7 @@ void run()
             show_window(SW_HIDE)
         );
         pid = c.proc_info.dwProcessId;
-		// std::cout << "PID: " << pid << std::endl;
+        delete szArgs;
     #endif
 
     file_descriptor_sink sink2(pin.sink, boost::iostreams::close_handle);
@@ -218,6 +219,10 @@ int main(int argc, char *argv[])
             user = argv[i + 1];
             i++;
         }
+        else if (std::string(argv[i]) == "-p") {
+            upassword = argv[i + 1];
+            i++;
+        }
         else if (std::string(argv[i]) == "--disable-stdin") {
             no_stdin = true;
             i++;
@@ -269,13 +274,117 @@ int main(int argc, char *argv[])
                 close(STDERR_FILENO);
             }
         #elif _WIN32
+
+            // std::string cmd = "/c " + std::string(argv[0]) + " -t run -d " + directory + " -c " + command;
+            std::string cmd = std::string(argv[0]) + " -t run -d " + directory + " -c " + command;
+
+            TCHAR* szCmdline = new TCHAR[strlen(cmd.c_str()) + 1];
+            mbstowcs(szCmdline, cmd.c_str(), strlen(cmd.c_str()) + 1);
+
+            TCHAR* szUser = new TCHAR[strlen(user.c_str()) + 1];
+            mbstowcs(szUser, user.c_str(), strlen(user.c_str()) + 1);
+            
+            TCHAR* szPassword = new TCHAR[strlen(upassword.c_str()) + 1];
+            mbstowcs(szPassword, upassword.c_str(), strlen(upassword.c_str()) + 1);
+
+            HANDLE hUserToken;
+			TOKEN_PRIVILEGES tp;
+            PROCESS_INFORMATION pi;
+            STARTUPINFO         si;
+
+            ZeroMemory(&si, sizeof(si));
+            si.cb = sizeof(si);
+            ZeroMemory(&pi, sizeof(pi));
+
+			// si.lpDesktop = "";
+            si.lpDesktop = L"winsta0\\default";
+			si.dwFlags = STARTF_USESTDHANDLES | STARTF_USESHOWWINDOW;
+			si.wShowWindow = SW_HIDE;
             
             try {
-                std::string cmd = "/c " + std::string(argv[0]) + " -t run -d " + directory + " -c " + command;
 
-                wchar_t* szCmdline = new wchar_t[strlen(cmd.c_str()) + 1];
-                mbstowcs(szCmdline, cmd.c_str(), strlen(cmd.c_str()) + 1);
+				if (user != "" && upassword != "") {
+					/*
+					if (!OpenProcessToken(
+						GetCurrentProcess(), 
+						TOKEN_QUERY | TOKEN_ADJUST_PRIVILEGES,
+						&hUserToken
+					)) {
+						std::cerr << "OpenProcessToken error: " << GetLastError() << std::endl;
+						return 1;
+					}
 
+					if (!LookupPrivilegeValue(
+						NULL,SE_TCB_NAME,
+						&tp.Privileges[0].Luid
+					)) {
+						std::cerr << "LookupPrivilegeValue error: " << GetLastError() << std::endl;
+						return 1;
+					}
+
+					tp.PrivilegeCount = 1;
+					tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+					if (!AdjustTokenPrivileges(hUserToken, FALSE, &tp, 0, NULL, 0)) {
+						std::cerr << "AdjustTokenPrivileges error: " << GetLastError() << std::endl;
+						return 1;
+					}
+					*/
+
+					if (!LogonUser(
+						szUser,
+						NULL,
+						szPassword,
+						LOGON32_LOGON_INTERACTIVE,
+						LOGON32_PROVIDER_DEFAULT,
+						&hUserToken
+					)) {
+						std::cerr << "LogonUser error: " << GetLastError() << std::endl;
+						return 1;
+					}
+
+					/*
+					if (!ImpersonateLoggedOnUser(hUserToken)) {
+						std::cerr << "ImpersonateLoggedOnUser error: " << GetLastError() << std::endl;
+						return 1;
+					}
+					*/
+
+					if (!CreateProcessAsUser(
+						hUserToken,
+						NULL,
+						szCmdline,
+						NULL,
+						NULL,
+						FALSE,
+						CREATE_NEW_CONSOLE,
+						NULL,
+						NULL,
+						&si,
+						&pi
+					)) {
+						std::cerr << "CreateProcessAsUser error: " << GetLastError() << std::endl;
+						return 1;
+					}
+				}
+				else {
+					if (!CreateProcess(
+						NULL,
+						szCmdline,
+						NULL,
+						NULL,
+						FALSE,
+						CREATE_NEW_CONSOLE,
+						NULL,
+						NULL,
+						&si,
+						&pi
+					)) {
+						std::cerr << "CreateProcess error: " << GetLastError() << std::endl;
+						return 1;
+					}
+				}
+
+                /*
                 boost::process::execute(
                     boost::process::initializers::close_stdout(),
                     boost::process::initializers::close_stderr(),
@@ -286,9 +395,18 @@ int main(int argc, char *argv[])
                     boost::process::initializers::throw_on_error(),
                     show_window(SW_HIDE)
                 );
+                */
             } catch (boost::system::system_error &e) {
                 std::cerr << "Exec error: " << e.what() << std::endl;
             }
+
+            CloseHandle(hUserToken);
+            CloseHandle(pi.hProcess);
+            CloseHandle(pi.hThread);
+
+            delete szCmdline;
+            delete szUser;
+            delete szPassword;
             
             fclose(stdin);
             fclose(stdout);
