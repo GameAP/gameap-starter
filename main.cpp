@@ -7,11 +7,16 @@
 #include <stdio.h>
 #include <sys/types.h>
 
-#ifdef __linux__ 
+#ifdef __linux__
+    #include <sys/prctl.h>
     #include <unistd.h>
     #include <signal.h>
     
     #include <pwd.h>
+    #include <fcntl.h>
+    #include <sched.h>
+    #include <sys/ioctl.h>
+    #include <sys/stat.h>
 #elif _WIN32
 	#include <process.h>
 #endif
@@ -36,9 +41,13 @@
     #define SHELL_PREF "/c"
 #endif 
 
-using namespace boost::process;
-using namespace boost::process::initializers;
+// using namespace boost::process;
+// using namespace boost::process::initializers;
 using namespace boost::iostreams;
+
+namespace bp = boost::process;
+namespace bpi = boost::process::initializers;
+namespace bi = boost::iostreams;
 
 std::string type        = "";
 std::string command     = "";
@@ -89,16 +98,16 @@ void run()
 
     #ifdef __linux__
         chdir(&directory[0]);
-        child c = boost::process::execute(
-            bind_stdout(sink),
-            bind_stderr(sink),
-            bind_stdin(source),
-            start_in_dir(directory),
-            boost::process::initializers::run_exe(shell_path()),
-            boost::process::initializers::set_args(std::vector<std::string>{PROC_SHELL, SHELL_PREF, command}),
+        bp::child c = boost::process::execute(
+            bpi::bind_stdout(sink),
+            bpi::bind_stderr(sink),
+            bpi::bind_stdin(source),
+            bpi::start_in_dir(directory),
+            bpi::run_exe(bp::shell_path()),
+            bpi::set_args(std::vector<std::string>{PROC_SHELL, SHELL_PREF, command}),
 
-            boost::process::initializers::inherit_env(),
-            boost::process::initializers::throw_on_error()
+            bpi::inherit_env(),
+            bpi::throw_on_error()
         );
         pid = c.pid;
         
@@ -107,16 +116,16 @@ void run()
         wchar_t* szArgs = new wchar_t[strlen(args.c_str()) + 1];
         mbstowcs(szArgs, args.c_str(), strlen(args.c_str()) + 1);
 
-        child c = boost::process::execute(
-            bind_stdout(sink),
-            bind_stderr(sink),
-            bind_stdin(source),
-            run_exe(exe),
-            boost::process::initializers::set_cmd_line(szArgs),
-            start_in_dir(directory),
-            boost::process::initializers::inherit_env(),
-            boost::process::initializers::throw_on_error(),
-            show_window(SW_HIDE)
+        bp::child c = bp::execute(
+            bpi::bind_stdout(sink),
+            bpi::bind_stderr(sink),
+            bpi::bind_stdin(source),
+            bpi::run_exe(exe),
+            bpi::set_cmd_line(szArgs),
+            bpi::start_in_dir(directory),
+            bpi::inherit_env(),
+            bpi::throw_on_error(),
+            bpi::show_window(SW_HIDE)
         );
         pid = c.proc_info.dwProcessId;
         delete szArgs;
@@ -138,6 +147,10 @@ void run()
     pidfile.open(GAS_PID_FILE, std::ofstream::out | std::ofstream::trunc);
     pidfile << pid;
     pidfile.close();
+
+    fclose(stdin);
+    fclose(stdout);
+    fclose(stderr);
 
     if (no_stdin) {
         wait_for_exit(c);
@@ -247,13 +260,23 @@ int main(int argc, char *argv[])
     if (type == "start") {
 
         #ifdef __linux__
-            passwd * pwd = getpwnam(&user[0]);
+            passwd * pwd;
+            if (user != "") {
+                pwd = getpwnam(&user[0]);
 
-            if (pwd == NULL) {
-                std::cerr << "Invalid user" << std::endl;
-                return 1;
+                if (pwd == NULL) {
+                    std::cerr << "Invalid user" << std::endl;
+                    return 1;
+                }
             }
-            
+
+            close(STDIN_FILENO);
+            close(STDOUT_FILENO);
+            close(STDERR_FILENO);
+
+            int i;
+            for (i = getdtablesize(); i >= 0; --i) close(i);
+
             pid_t pid = fork();
 
             if (pid == -1) {
@@ -261,22 +284,43 @@ int main(int argc, char *argv[])
                 return 1;
             }
 
+            if (pid != 0) {
+                exit(0);
+            }
+
             if (pid == 0) {
+                umask(0);
+                setsid();
+                
+                signal(SIGHUP, SIG_IGN);
+                setpgrp();
+
+                // int devtty;
+                // if ((devtty = open("/dev/tty", O_RDWR | O_NONBLOCK)) >= 0) {
+                    // if (ioctl(devtty, TIOCNOTTY, (char *)0))
+                        // close(devtty);
+                // }
+                
+                // prctl(PR_SET_PDEATHSIG, SIGUSR1);
+                
+                std::cout << "Child PID: " << getpid() << std::endl;
+                std::cout << "Child Group: " << getppid() << std::endl;
+
                 if (user != "") {
                     setgid(pwd->pw_gid);
                     setuid(pwd->pw_uid);
                 }
-                
+
+                freopen("/dev/null", "r", stdin);
+                freopen("/dev/null", "w", stdout);
+                freopen("/dev/null", "w", stderr);
+
                 run();
-            } else {
-                close(STDIN_FILENO);
-                close(STDOUT_FILENO);
-                close(STDERR_FILENO);
             }
         #elif _WIN32
 
-            // std::string cmd = "/c " + std::string(argv[0]) + " -t run -d " + directory + " -c " + command;
-            std::string cmd = std::string(argv[0]) + " -t run -d " + directory + " -c " + command;
+            std::string cmd = "/c " + std::string(argv[0]) + " -t run -d " + directory + " -c " + command;
+            // std::string cmd = std::string(argv[0]) + " -t run -d " + directory + " -c " + command;
 
             TCHAR* szCmdline = new TCHAR[strlen(cmd.c_str()) + 1];
             mbstowcs(szCmdline, cmd.c_str(), strlen(cmd.c_str()) + 1);
@@ -349,7 +393,7 @@ int main(int argc, char *argv[])
 
                 if (!CreateProcessAsUser(
                     hUserToken,
-                    NULL,
+                    shell_path(),
                     szCmdline,
                     NULL,
                     NULL,
@@ -366,7 +410,7 @@ int main(int argc, char *argv[])
             }
             else {
                 if (!CreateProcess(
-                    NULL,
+                    shell_path(),
                     szCmdline,
                     NULL,
                     NULL,
@@ -428,9 +472,11 @@ int main(int argc, char *argv[])
 
         unsigned int pid = atoi(&stpid[0]);
 
+        std::cout << "PID: " << pid << std::endl;
+
         #ifdef __linux__
             if (kill(pid, SIGTERM) != 0) {
-                std::cout << "Stop error" << std::endl;
+                std::cerr << "Stop error" << std::endl;
             }
         #elif _WIN32
             std::string cmd_kill_str = "taskkill /PID " + stpid;
@@ -438,7 +484,7 @@ int main(int argc, char *argv[])
         #endif
 
         pidfile.close();
-        boost::filesystem::remove(GAS_PID_FILE);
+        // boost::filesystem::remove(GAS_PID_FILE);
     }
 #ifdef _WIN32
     else if (type == "run") {
@@ -452,6 +498,6 @@ int main(int argc, char *argv[])
     else {
         show_help();
     }
-
+    
     return 0;
 }
