@@ -1,17 +1,17 @@
-#include <string> 
+#include <string>
 #include <vector>
 
-#include <thread>
 #include <iostream>
 
 #include <stdio.h>
 #include <sys/types.h>
 
 #ifdef __linux__
+    #include <thread>
     #include <sys/prctl.h>
     #include <unistd.h>
     #include <signal.h>
-    
+
     #include <pwd.h>
     #include <fcntl.h>
     #include <sched.h>
@@ -19,6 +19,17 @@
     #include <sys/stat.h>
 #elif _WIN32
 	#include <process.h>
+	
+	#if DEBUG
+		#pragma comment(lib, "libboost_system-vc100-mt-gd-1_60.lib")
+		#pragma comment(lib, "libboost_filesystem-vc100-mt-gd-1_60.lib")
+		#pragma comment(lib, "libboost_iostreams-vc100-mt-gd-1_60.lib")
+	#else
+		#pragma comment(lib, "libboost_system-vc100-mt-1_60.lib")
+		#pragma comment(lib, "libboost_filesystem-vc100-mt-1_60.lib")
+		#pragma comment(lib, "libboost_iostreams-vc100-mt-1_60.lib")
+	#endif
+
 #endif
 
 #include <stdlib.h>
@@ -39,7 +50,7 @@
 #elif defined(BOOST_WINDOWS_API)
     #define PROC_SHELL "cmd"
     #define SHELL_PREF "/c"
-#endif 
+#endif
 
 // using namespace boost::process;
 // using namespace boost::process::initializers;
@@ -58,7 +69,6 @@ std::string upassword   = "";
 bool no_stdin   = false;
 bool no_stdout  = false;
 
-
 void show_help()
 {
     std::cout << "**************************************\n";
@@ -68,7 +78,7 @@ void show_help()
     std::cout << "Program created by NiK \n";
     std::cout << "Site: http://www.gameap.ru \n";
     std::cout << "Skype: kuznets007 \n\n";
-    
+
     std::cout << "Version: 0.1\n";
     std::cout << "Build date: " << __DATE__ << " " << __TIME__ << std::endl << std::endl;
 
@@ -83,8 +93,8 @@ void show_help()
 
 void run()
 {
-    boost::filesystem::current_path(&directory[0]);
-    
+	boost::filesystem::current_path(&directory[0]);
+
     file_descriptor_sink sink(GAS_OUTPUT_FILE);
 
     boost::process::pipe pin = boost::process::create_pipe();
@@ -92,7 +102,11 @@ void run()
 
     size_t arg_start = command.find(' ');
     std::string exe = command.substr(0, arg_start);
-    std::string args = command.substr(arg_start, command.size());
+
+	std::string args = "";
+	if (arg_start != std::string::npos) {
+		args = command.substr(arg_start, command.size());
+	}
 
     unsigned long pid;
 
@@ -110,7 +124,7 @@ void run()
             bpi::throw_on_error()
         );
         pid = c.pid;
-        
+
     #elif _WIN32
         args = directory + "\\" + exe + " " + args;
         wchar_t* szArgs = new wchar_t[strlen(args.c_str()) + 1];
@@ -122,25 +136,31 @@ void run()
             bpi::bind_stdin(source),
             bpi::run_exe(exe),
             bpi::set_cmd_line(szArgs),
+            // bpi::set_cmd_line(args), // MinGW
             bpi::start_in_dir(directory),
             bpi::inherit_env(),
             bpi::throw_on_error(),
             bpi::show_window(SW_HIDE)
         );
+
         pid = c.proc_info.dwProcessId;
         delete szArgs;
     #endif
 
     file_descriptor_sink sink2(pin.sink, boost::iostreams::close_handle);
     boost::iostreams::stream<boost::iostreams::file_descriptor_sink> os(sink2);
-
     std::string input_line;
-
     // Create and trunc stdin.txt
     std::fstream coninput;
     std::ofstream conout;
     conout.open(GAS_INPUT_FILE, std::ofstream::out | std::ofstream::trunc);
     conout.close();
+
+	// Cmd
+    std::ofstream cmdlog;
+    cmdlog.open("cmd.txt", std::ofstream::out | std::ofstream::trunc);
+	cmdlog << args << std::endl;
+    cmdlog.close();
 
     // Write pid
     std::ofstream pidfile;
@@ -165,7 +185,7 @@ void run()
         #elif _WIN32
             unsigned long exit = 0;
         #endif
-    
+
         while(true) {
             #ifdef __linux__
                 if (exited) {
@@ -178,23 +198,23 @@ void run()
                     break;
                 }
             #endif
-            
+
             coninput.open(GAS_INPUT_FILE, std::ifstream::in);
             getline(coninput, input_line);
-            
+
             if (input_line != "") {
                 if (input_line == "GAS_EXIT") {
                     coninput.close();
 
-                    #ifdef __linux__ 
+                    #ifdef __linux__
                         kill(0, SIGINT);
                     #elif _WIN32
                         terminate(c);
                     #endif
-                    
+
                     break;
                 }
-                
+
                 os << input_line << std::endl;
 
                 conout.open(GAS_INPUT_FILE, std::ofstream::out | std::ofstream::trunc);
@@ -206,14 +226,14 @@ void run()
 
             coninput.close();
 
-            #ifdef __linux__ 
+            #ifdef __linux__
                 sleep(1);
             #elif _WIN32
                 Sleep(1000);
             #endif
         }
     }
-    
+
     // wait_for_exit(c);
 }
 
@@ -246,7 +266,13 @@ int main(int argc, char *argv[])
         }
         else if (std::string(argv[i]) == "-c") {
             while (i < argc - 1) {
-                command = (command == "") ? command + argv[i + 1] : command + " " + argv[i + 1];
+				std::string argv_str = std::string(argv[i + 1]);
+
+				if (argv_str.find(" ") != std::string::npos) {
+					argv_str = '"' + argv_str + '"';
+				}
+
+                command = (command == "") ? command + argv_str : command + " " + argv_str;
                 i++;
             }
 
@@ -256,9 +282,10 @@ int main(int argc, char *argv[])
             // ...
         }
     }
-    
-    if (type == "start") {
 
+	std::cout << "Command: " << command << std::endl;
+
+    if (type == "start") {
         #ifdef __linux__
             passwd * pwd;
             if (user != "") {
@@ -291,7 +318,7 @@ int main(int argc, char *argv[])
             if (pid == 0) {
                 umask(0);
                 setsid();
-                
+
                 signal(SIGHUP, SIG_IGN);
                 setpgrp();
 
@@ -300,9 +327,9 @@ int main(int argc, char *argv[])
                     // if (ioctl(devtty, TIOCNOTTY, (char *)0))
                         // close(devtty);
                 // }
-                
+
                 // prctl(PR_SET_PDEATHSIG, SIGUSR1);
-                
+
                 std::cout << "Child PID: " << getpid() << std::endl;
                 std::cout << "Child Group: " << getppid() << std::endl;
 
@@ -318,18 +345,18 @@ int main(int argc, char *argv[])
                 run();
             }
         #elif _WIN32
-
             std::string cmd = "/c " + std::string(argv[0]) + " -t run -d " + directory + " -c " + command;
             // std::string cmd = std::string(argv[0]) + " -t run -d " + directory + " -c " + command;
-
+            
             TCHAR* szCmdline = new TCHAR[strlen(cmd.c_str()) + 1];
             mbstowcs(szCmdline, cmd.c_str(), strlen(cmd.c_str()) + 1);
 
             TCHAR* szUser = new TCHAR[strlen(user.c_str()) + 1];
             mbstowcs(szUser, user.c_str(), strlen(user.c_str()) + 1);
-            
+
             TCHAR* szPassword = new TCHAR[strlen(upassword.c_str()) + 1];
             mbstowcs(szPassword, upassword.c_str(), strlen(upassword.c_str()) + 1);
+            
 
             HANDLE hUserToken;
 			TOKEN_PRIVILEGES tp;
@@ -344,11 +371,11 @@ int main(int argc, char *argv[])
             si.lpDesktop = L"winsta0\\default";
 			si.dwFlags = STARTF_USESTDHANDLES | STARTF_USESHOWWINDOW;
 			si.wShowWindow = SW_HIDE;
-            
+
             if (user != "" && upassword != "") {
                 /*
                 if (!OpenProcessToken(
-                    GetCurrentProcess(), 
+                    GetCurrentProcess(),
                     TOKEN_QUERY | TOKEN_ADJUST_PRIVILEGES,
                     &hUserToken
                 )) {
@@ -393,7 +420,7 @@ int main(int argc, char *argv[])
 
                 if (!CreateProcessAsUser(
                     hUserToken,
-                    shell_path(),
+					bp::shell_path().wstring().c_str(),
                     szCmdline,
                     NULL,
                     NULL,
@@ -409,8 +436,10 @@ int main(int argc, char *argv[])
                 }
             }
             else {
+                // std::string shell_path = bp::shell_path().string();
+
                 if (!CreateProcess(
-                    shell_path(),
+                    bp::shell_path().wstring().c_str(),
                     szCmdline,
                     NULL,
                     NULL,
@@ -450,11 +479,14 @@ int main(int argc, char *argv[])
             delete szCmdline;
             delete szUser;
             delete szPassword;
-            
+
             fclose(stdin);
             fclose(stdout);
             fclose(stderr);
         #endif
+    }
+    else if (type == "status") {
+
     }
     else if (type == "stop") {
         boost::filesystem::current_path(&directory[0]);
@@ -479,7 +511,7 @@ int main(int argc, char *argv[])
                 std::cerr << "Stop error" << std::endl;
             }
         #elif _WIN32
-            std::string cmd_kill_str = "taskkill /PID " + stpid;
+            std::string cmd_kill_str = "taskkill /F /PID " + stpid;
 			system(&cmd_kill_str[0]);
         #endif
 
@@ -490,14 +522,15 @@ int main(int argc, char *argv[])
     else if (type == "run") {
         try {
             run();
-        } catch (boost::system::system_error &e) {
+        } catch (std::exception &e) {
             std::cerr << "Run error: " << e.what() << std::endl;
+			exit(1);
         }
     }
 #endif
     else {
         show_help();
     }
-    
+
     return 0;
 }
