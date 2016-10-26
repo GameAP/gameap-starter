@@ -19,6 +19,10 @@
     #include <sys/stat.h>
 #elif _WIN32
 	#include <process.h>
+
+	#include <windows.h>
+	#include <tlhelp32.h>
+	#include <tchar.h>
 	
 	#if DEBUG
 		#pragma comment(lib, "libboost_system-vc100-mt-gd-1_60.lib")
@@ -39,6 +43,8 @@
 #include <boost/filesystem.hpp>
 #include <boost/process.hpp>
 #include <boost/iostreams/stream.hpp>
+
+#include "proc.h"
 
 #define GAS_PID_FILE "pid.txt"
 #define GAS_INPUT_FILE "stdin.txt"
@@ -69,6 +75,8 @@ std::string upassword   = "";
 bool no_stdin   = false;
 bool no_stdout  = false;
 
+// ---------------------------------------------------------------------
+
 void show_help()
 {
     std::cout << "**************************************\n";
@@ -90,6 +98,8 @@ void show_help()
     std::cout << "Examples:\n";
     std::cout << "./starter -t start -d /home/servers/hlds -c \"hlds_run -game valve +ip 127.0.0.1 +port 27015 +map crossfire\"\n";
 }
+
+// ---------------------------------------------------------------------
 
 void run()
 {
@@ -237,6 +247,90 @@ void run()
     // wait_for_exit(c);
 }
 
+#ifdef _WIN32
+bool isRunning(int pid)   
+{   
+   HANDLE pss = CreateToolhelp32Snapshot(TH32CS_SNAPALL, 0);   
+   
+   PROCESSENTRY32 pe = { 0 };  
+   pe.dwSize = sizeof(pe);  
+   
+	if (Process32First(pss, &pe)) {  
+		do {  
+			// pe.szExeFile can also be useful  
+			if (pe.th32ProcessID == pid)  
+				return true;   
+		}  
+		while(Process32Next(pss, &pe));  
+	}   
+   
+	CloseHandle(pss);  
+    
+	return false;  
+}  
+#endif
+
+// ---------------------------------------------------------------------
+
+bool server_status()
+{
+    char bufread[32];
+    
+    pid_t pid;
+
+    boost::filesystem::current_path(&directory[0]);
+    boost::filesystem::path p(&directory[0]);
+    p /= "pid.txt";
+
+    std::ifstream pidfile;
+    pidfile.open(p.string(), std::ios::in);
+
+    if (pidfile.good()) {
+        pidfile.getline(bufread, 32);
+        pidfile.close();
+
+        pid = atoi(bufread);
+    } else {
+        std::cout << "Pidfile " << p << " read error" << std::endl;
+        unsigned int pcount = count_proc_in_path(&directory[0]);
+        std::cout << "pcount: " << pcount << std::endl;
+        
+        if (pcount == 1) {
+            pid = find_pid_by_path(&directory[0]);
+            
+            if (pid == -1) {
+                std::cerr << "Pid not found" << std::endl;
+                return 0;
+            }
+        } else if (pcount > 1) {
+            killall(&directory[0]);
+        }
+    }
+    
+    bool active = false;
+    
+    if (pid != 0) {
+        #ifdef __linux__
+            active = (kill(pid, 0) == 0) ? 1 : 0;
+
+        #elif _WIN32
+			active = isRunning(pid);
+        #endif
+    }
+	
+	if (!active) {
+		unsigned int pcount = count_proc_in_path(&directory[0]);
+		
+		if (pcount > 0) {
+			active = true;
+		}
+	}
+
+    return active;
+}
+
+// ---------------------------------------------------------------------
+
 int main(int argc, char *argv[])
 {
     for (int i = 0; i < argc - 1; i++) {
@@ -264,7 +358,7 @@ int main(int argc, char *argv[])
             no_stdout = true;
             i++;
         }
-        else if (std::string(argv[i]) == "-c") {
+        else if (std::string(argv[i]) == "-c" || std::string(argv[i]) == "--cmd") {
             while (i < argc - 1) {
 				std::string argv_str = std::string(argv[i + 1]);
 
@@ -284,6 +378,7 @@ int main(int argc, char *argv[])
     }
 
 	std::cout << "Command: " << command << std::endl;
+	std::cout << "Type: " << type << std::endl;
 
     if (type == "start") {
         #ifdef __linux__
@@ -373,31 +468,6 @@ int main(int argc, char *argv[])
 			si.wShowWindow = SW_HIDE;
 
             if (user != "" && upassword != "") {
-                /*
-                if (!OpenProcessToken(
-                    GetCurrentProcess(),
-                    TOKEN_QUERY | TOKEN_ADJUST_PRIVILEGES,
-                    &hUserToken
-                )) {
-                    std::cerr << "OpenProcessToken error: " << GetLastError() << std::endl;
-                    return 1;
-                }
-
-                if (!LookupPrivilegeValue(
-                    NULL,SE_TCB_NAME,
-                    &tp.Privileges[0].Luid
-                )) {
-                    std::cerr << "LookupPrivilegeValue error: " << GetLastError() << std::endl;
-                    return 1;
-                }
-
-                tp.PrivilegeCount = 1;
-                tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
-                if (!AdjustTokenPrivileges(hUserToken, FALSE, &tp, 0, NULL, 0)) {
-                    std::cerr << "AdjustTokenPrivileges error: " << GetLastError() << std::endl;
-                    return 1;
-                }
-                */
 
                 if (!LogonUser(
                     szUser,
@@ -410,13 +480,6 @@ int main(int argc, char *argv[])
                     std::cerr << "LogonUser error: " << GetLastError() << std::endl;
                     return 1;
                 }
-
-                /*
-                if (!ImpersonateLoggedOnUser(hUserToken)) {
-                    std::cerr << "ImpersonateLoggedOnUser error: " << GetLastError() << std::endl;
-                    return 1;
-                }
-                */
 
                 if (!CreateProcessAsUser(
                     hUserToken,
@@ -455,23 +518,6 @@ int main(int argc, char *argv[])
                 }
             }
 
-            /*
-            try {
-                boost::process::execute(
-                    boost::process::initializers::close_stdout(),
-                    boost::process::initializers::close_stderr(),
-                    boost::process::initializers::close_stdin(),
-                    boost::process::initializers::run_exe(shell_path()),
-                    boost::process::initializers::set_cmd_line(szCmdline),
-                    boost::process::initializers::inherit_env(),
-                    boost::process::initializers::throw_on_error(),
-                    show_window(SW_HIDE)
-                );
-            } catch (boost::system::system_error &e) {
-                std::cerr << "Exec error: " << e.what() << std::endl;
-            }
-            */
-
             CloseHandle(hUserToken);
             CloseHandle(pi.hProcess);
             CloseHandle(pi.hThread);
@@ -485,37 +531,70 @@ int main(int argc, char *argv[])
             fclose(stderr);
         #endif
     }
-    else if (type == "status") {
-
-    }
     else if (type == "stop") {
         boost::filesystem::current_path(&directory[0]);
+
+        int pid;
 
         std::fstream pidfile;
         pidfile.open(GAS_PID_FILE, std::ifstream::in);
 
         if (!pidfile.good()) {
             std::cerr << "PID file open error" << std::endl;
-            return 1;
+            unsigned int pcount = count_proc_in_path(&directory[0]);
+            std::cout << "pcount: " << pcount << std::endl;
+            
+            if (pcount == 1) {
+                pid = find_pid_by_path(&directory[0]);
+                
+                if (pid == -1) {
+                    std::cerr << "Pid not found" << std::endl;
+                    return 0;
+                }
+            } else if (pcount > 1) {
+                killall(&directory[0]);
+            }
+        } else {
+            std::string stpid;
+            getline(pidfile, stpid);
+
+            pid = atoi(&stpid[0]);
         }
 
-        std::string stpid;
-        getline(pidfile, stpid);
-
-        unsigned int pid = atoi(&stpid[0]);
-
-        std::cout << "PID: " << pid << std::endl;
-
-        #ifdef __linux__
-            if (kill(pid, SIGTERM) != 0) {
-                std::cerr << "Stop error" << std::endl;
-            }
-        #elif _WIN32
-            std::string cmd_kill_str = "taskkill /F /PID " + stpid;
-			system(&cmd_kill_str[0]);
-        #endif
-
         pidfile.close();
+
+        if (!server_status()) {
+            pid = find_pid_by_path(&directory[0]);
+
+            // Kill all in dir. AHAHAHAHAAA!!!
+            if (pid > 0) {
+                killall(&directory[0]);
+            }
+        } else {
+
+            std::cout << "PID: " << pid << std::endl;
+
+            if (pid != -1) {
+                #ifdef __linux__
+                    if (kill(pid, SIGTERM) != 0) {
+                        std::cerr << "Stop error: " << strerror(errno) << std::endl;
+                    }
+                #elif _WIN32
+					std::string stpid;
+					//itoa(pid, &stpid[0], 10);
+					//stpid = std::string(itoa(pid));
+
+					std::string cmd_kill_str = "taskkill /F /PID " + std::to_string((_Longlong)pid);
+					std::cout << "stpid: " << stpid << std::endl;
+					std::cout << "CMD KILL: " << cmd_kill_str << std::endl;
+                    system(&cmd_kill_str[0]);
+                #endif
+            } else {
+                std::cerr << "Server not running" << std::endl;
+                return 3;
+            }
+        }
+        
         // boost::filesystem::remove(GAS_PID_FILE);
     }
 #ifdef _WIN32
@@ -528,6 +607,18 @@ int main(int argc, char *argv[])
         }
     }
 #endif
+    else if (type == "status") {
+        bool active = server_status();
+        
+        if (active) {
+            std::cout << "Server still active" << std::endl;
+            return 0;
+        }
+        else {
+            std::cout << "Server not running" << std::endl;
+            return 3;
+        }
+    }
     else {
         show_help();
     }

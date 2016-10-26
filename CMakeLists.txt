@@ -4,8 +4,8 @@
 # SET(CMAKE_C_COMPILER       /usr/bin/i686-w64-mingw32-gcc-win32 )
 # SET(CMAKE_CXX_COMPILER     /usr/bin/i686-w64-mingw32-g++-win32 )
 
-SET(CMAKE_C_COMPILER       gcc-4.9 )
-SET(CMAKE_CXX_COMPILER     g++-4.9 )
+SET(CMAKE_C_COMPILER       gcc-4.8 )
+SET(CMAKE_CXX_COMPILER     g++-4.8 )
 
 cmake_minimum_required(VERSION 2.8)
 
@@ -26,11 +26,12 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 link_directories(${CMAKE_CURRENT_SOURCE_DIR}/libs)
 
 add_executable(starter
+    proc.cpp
     main.cpp
 )
 
 target_link_libraries (starter pthread boost_system boost_filesystem boost_iostreams)
 # target_link_libraries (starter boost_system-mgw49-mt boost_iostreams-mgw49-mt boost_filesystem-mgw49-mt)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC " )
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC" )
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC" )
