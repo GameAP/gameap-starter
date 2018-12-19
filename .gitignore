@@ -1,0 +1,6 @@
+.idea
+cmake-build-debug
+Makefile
+starter
+starter.exe
+test.sh

@@ -4,8 +4,8 @@
 # SET(CMAKE_C_COMPILER       /usr/bin/i686-w64-mingw32-gcc-win32 )
 # SET(CMAKE_CXX_COMPILER     /usr/bin/i686-w64-mingw32-g++-win32 )
 
-SET(CMAKE_C_COMPILER       gcc-4.8 )
-SET(CMAKE_CXX_COMPILER     g++-4.8 )
+#SET(CMAKE_C_COMPILER       gcc )
+#SET(CMAKE_CXX_COMPILER     g++ )
 
 cmake_minimum_required(VERSION 2.8)
 

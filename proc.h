@@ -3,7 +3,7 @@
 
 #define PROC_H
 
-typedef unsigned long pid_t;
+// typedef unsigned long pid_t;
 
 pid_t find_pid_by_path(const char *path);
 void killall(const char *path);

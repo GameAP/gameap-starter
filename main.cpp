@@ -3,19 +3,15 @@
 
 #include <iostream>
 
-#include <stdio.h>
+#include <cstdio>
 #include <sys/types.h>
 
 #ifdef __linux__
     #include <thread>
-    #include <sys/prctl.h>
     #include <unistd.h>
-    #include <signal.h>
+    #include <csignal>
 
     #include <pwd.h>
-    #include <fcntl.h>
-    #include <sched.h>
-    #include <sys/ioctl.h>
     #include <sys/stat.h>
 #elif _WIN32
 	#include <process.h>
@@ -23,7 +19,7 @@
 	#include <windows.h>
 	#include <tlhelp32.h>
 	#include <tchar.h>
-	
+
 	#if DEBUG
 		#pragma comment(lib, "libboost_system-vc100-mt-gd-1_60.lib")
 		#pragma comment(lib, "libboost_filesystem-vc100-mt-gd-1_60.lib")
@@ -36,8 +32,7 @@
 
 #endif
 
-#include <stdlib.h>
-
+#include <cstdlib>
 #include <fstream>
 
 #include <boost/filesystem.hpp>
@@ -47,8 +42,8 @@
 #include "proc.h"
 
 #define GAS_PID_FILE "pid.txt"
-#define GAS_INPUT_FILE "stdin.txt"
-#define GAS_OUTPUT_FILE "stdout.txt"
+#define GAS_INPUT_FILE "input.txt"
+#define GAS_OUTPUT_FILE "output.txt"
 
 #if defined(BOOST_POSIX_API)
     #define PROC_SHELL "sh"
@@ -58,15 +53,12 @@
     #define SHELL_PREF "/c"
 #endif
 
-// using namespace boost::process;
-// using namespace boost::process::initializers;
 using namespace boost::iostreams;
 
 namespace bp = boost::process;
-namespace bpi = boost::process::initializers;
 namespace bi = boost::iostreams;
 
-std::string type        = "";
+std::string cmd_type    = "";
 std::string command     = "";
 std::string directory   = "";
 std::string user        = "";
@@ -83,15 +75,15 @@ void show_help()
     std::cout << "*     Welcome to GameAP Starter      *\n";
     std::cout << "**************************************\n\n";
 
-    std::cout << "Program created by NiK \n";
+    std::cout << "Program created by kNiK \n";
+    std::cout << "GitHub: https://github.com/et-nik \n";
     std::cout << "Site: http://www.gameap.ru \n";
-    std::cout << "Skype: kuznets007 \n\n";
 
-    std::cout << "Version: 0.1\n";
+    std::cout << "Version: 0.2\n";
     std::cout << "Build date: " << __DATE__ << " " << __TIME__ << std::endl << std::endl;
 
     std::cout << "Parameters\n";
-    std::cout << "-t <type>\n";
+    std::cout << "-t <cmd_type>\n";
     std::cout << "-d <work dir>\n";
     std::cout << "-c <command>  (example 'hlds_run -game valve +ip 127.0.0.1 +port 27015 +map crossfire')\n\n";
 
@@ -105,61 +97,42 @@ void run()
 {
 	boost::filesystem::current_path(&directory[0]);
 
-    file_descriptor_sink sink(GAS_OUTPUT_FILE);
-
-    boost::process::pipe pin = boost::process::create_pipe();
-    boost::iostreams::file_descriptor_source source(pin.source, boost::iostreams::close_handle);
-
     size_t arg_start = command.find(' ');
     std::string exe = command.substr(0, arg_start);
 
-	std::string args = "";
+	std::string args;
 	if (arg_start != std::string::npos) {
 		args = command.substr(arg_start, command.size());
 	}
 
+    // Create and trunc stdout.txt
+    {
+        std::ofstream conout;
+        conout.open(GAS_OUTPUT_FILE, std::ofstream::out | std::ofstream::trunc);
+        conout.close();
+    }
+
     unsigned long pid;
 
-    #ifdef __linux__
-        chdir(&directory[0]);
-        bp::child c = boost::process::execute(
-            bpi::bind_stdout(sink),
-            bpi::bind_stderr(sink),
-            bpi::bind_stdin(source),
-            bpi::start_in_dir(directory),
-            bpi::run_exe(bp::shell_path()),
-            bpi::set_args(std::vector<std::string>{PROC_SHELL, SHELL_PREF, command}),
+    boost::asio::io_service ios;
+    bp::async_pipe pipe_in(ios);
+    bp::opstream in;
 
-            bpi::inherit_env(),
-            bpi::throw_on_error()
-        );
-        pid = c.pid;
+    bp::child c(bp::search_path(PROC_SHELL),
+                bp::args={SHELL_PREF, command},
+                (bp::std_out & bp::std_err) > GAS_OUTPUT_FILE,
+                bp::std_in < pipe_in,
+                ios,
+                bp::on_exit([&](int exit, const std::error_code& ec_in)
+                {
+                    pipe_in.async_close();
+                })
+    );
 
-    #elif _WIN32
-        args = directory + "\\" + exe + " " + args;
-        wchar_t* szArgs = new wchar_t[strlen(args.c_str()) + 1];
-        mbstowcs(szArgs, args.c_str(), strlen(args.c_str()) + 1);
+    pid = static_cast<unsigned long>(c.id());
 
-        bp::child c = bp::execute(
-            bpi::bind_stdout(sink),
-            bpi::bind_stderr(sink),
-            bpi::bind_stdin(source),
-            bpi::run_exe(exe),
-            bpi::set_cmd_line(szArgs),
-            // bpi::set_cmd_line(args), // MinGW
-            bpi::start_in_dir(directory),
-            bpi::inherit_env(),
-            bpi::throw_on_error(),
-            bpi::show_window(SW_HIDE)
-        );
-
-        pid = c.proc_info.dwProcessId;
-        delete szArgs;
-    #endif
-
-    file_descriptor_sink sink2(pin.sink, boost::iostreams::close_handle);
-    boost::iostreams::stream<boost::iostreams::file_descriptor_sink> os(sink2);
     std::string input_line;
+
     // Create and trunc stdin.txt
     std::fstream coninput;
     std::ofstream conout;
@@ -182,92 +155,58 @@ void run()
     fclose(stdout);
     fclose(stderr);
 
-    if (no_stdin) {
-        wait_for_exit(c);
-    } else {
-        #ifdef __linux__
-            bool exited = false;
-            std::thread thr{[c](bool *exited) {
-                boost::system::error_code ec;
-                wait_for_exit(c, ec);
-                *exited = true;
-            }, &exited};
-        #elif _WIN32
-            unsigned long exit = 0;
-        #endif
-
+    if (!no_stdin) {
         while(true) {
-            #ifdef __linux__
-                if (exited) {
-                    kill(0, SIGINT);
-                }
-            #elif _WIN32
-                GetExitCodeProcess(c.proc_info.hProcess, &exit);
-
-                if (exit != STILL_ACTIVE && exit != 4294967295) {
-                    break;
-                }
-            #endif
+            if (!c.running()) {
+                break;
+            }
 
             coninput.open(GAS_INPUT_FILE, std::ifstream::in);
             getline(coninput, input_line);
 
-            if (input_line != "") {
+            if (!input_line.empty()) {
                 if (input_line == "GAS_EXIT") {
                     coninput.close();
-
-                    #ifdef __linux__
-                        kill(0, SIGINT);
-                    #elif _WIN32
-                        terminate(c);
-                    #endif
-
+                    c.terminate();
                     break;
                 }
 
-                os << input_line << std::endl;
+                boost::asio::async_write(pipe_in, boost::asio::buffer(input_line + "\n\r"), []( const boost::system::error_code&, std::size_t){});
 
                 conout.open(GAS_INPUT_FILE, std::ofstream::out | std::ofstream::trunc);
                 conout.close();
             }
-            else {
-                // std::cout << "input line empty " << std::endl;
-            }
 
             coninput.close();
 
-            #ifdef __linux__
-                sleep(1);
-            #elif _WIN32
-                Sleep(1000);
-            #endif
+            std::this_thread::sleep_for(std::chrono::seconds(5));
         }
     }
 
-    // wait_for_exit(c);
+    ios.run();
 }
 
 #ifdef _WIN32
-bool isRunning(int pid)   
-{   
-   HANDLE pss = CreateToolhelp32Snapshot(TH32CS_SNAPALL, 0);   
-   
-   PROCESSENTRY32 pe = { 0 };  
-   pe.dwSize = sizeof(pe);  
-   
-	if (Process32First(pss, &pe)) {  
-		do {  
-			// pe.szExeFile can also be useful  
-			if (pe.th32ProcessID == pid)  
-				return true;   
-		}  
-		while(Process32Next(pss, &pe));  
-	}   
-   
-	CloseHandle(pss);  
-    
-	return false;  
-}  
+bool isRunning(int pid)
+{
+   HANDLE pss = CreateToolhelp32Snapshot(TH32CS_SNAPALL, 0);
+
+   PROCESSENTRY32 pe = { 0 };
+   pe.dwSize = sizeof(pe);
+
+	if (Process32First(pss, &pe)) {
+		do {
+			// pe.szExeFile can also be useful
+			if (pe.th32ProcessID == pid)
+				return true;
+		}
+		while(Process32Next(pss, &pe));
+	}
+
+	CloseHandle(pss);
+
+	return false;
+}
 #endif
 
 // ---------------------------------------------------------------------
@@ -275,7 +214,7 @@ bool isRunning(int pid)
 bool server_status()
 {
     char bufread[32];
-    
+
     pid_t pid;
 
     boost::filesystem::current_path(&directory[0]);
@@ -294,21 +233,19 @@ bool server_status()
         std::cout << "Pidfile " << p << " read error" << std::endl;
         unsigned int pcount = count_proc_in_path(&directory[0]);
         std::cout << "pcount: " << pcount << std::endl;
-        
+
         if (pcount == 1) {
             pid = find_pid_by_path(&directory[0]);
-            
+
             if (pid == -1) {
                 std::cerr << "Pid not found" << std::endl;
                 return 0;
             }
-        } else if (pcount > 1) {
-            killall(&directory[0]);
         }
     }
-    
+
     bool active = false;
-    
+
     if (pid != 0) {
         #ifdef __linux__
             active = (kill(pid, 0) == 0) ? 1 : 0;
@@ -317,11 +254,21 @@ bool server_status()
 			active = isRunning(pid);
         #endif
     }
-	
+
 	if (!active) {
 		unsigned int pcount = count_proc_in_path(&directory[0]);
-		
+
 		if (pcount > 0) {
+            unsigned int fpid = find_pid_by_path(&directory[0]);
+            
+            if (fpid != pid) {
+                // Write new pid
+                std::ofstream pidfile;
+                pidfile.open(GAS_PID_FILE, std::ofstream::out | std::ofstream::trunc);
+                pidfile << fpid;
+                pidfile.close();
+            }
+
 			active = true;
 		}
 	}
@@ -335,7 +282,7 @@ int main(int argc, char *argv[])
 {
     for (int i = 0; i < argc - 1; i++) {
         if (std::string(argv[i]) == "-t") {
-            type = argv[i + 1];
+            cmd_type = argv[i + 1];
             i++;
         }
         else if (std::string(argv[i]) == "-d") {
@@ -378,15 +325,15 @@ int main(int argc, char *argv[])
     }
 
 	std::cout << "Command: " << command << std::endl;
-	std::cout << "Type: " << type << std::endl;
+	std::cout << "Type: " << cmd_type << std::endl;
 
-    if (type == "start") {
+    if (cmd_type == "start") {
         #ifdef __linux__
             passwd * pwd;
-            if (user != "") {
+            if (!user.empty()) {
                 pwd = getpwnam(&user[0]);
 
-                if (pwd == NULL) {
+                if (pwd == nullptr) {
                     std::cerr << "Invalid user" << std::endl;
                     return 1;
                 }
@@ -417,14 +364,6 @@ int main(int argc, char *argv[])
                 signal(SIGHUP, SIG_IGN);
                 setpgrp();
 
-                // int devtty;
-                // if ((devtty = open("/dev/tty", O_RDWR | O_NONBLOCK)) >= 0) {
-                    // if (ioctl(devtty, TIOCNOTTY, (char *)0))
-                        // close(devtty);
-                // }
-
-                // prctl(PR_SET_PDEATHSIG, SIGUSR1);
-
                 std::cout << "Child PID: " << getpid() << std::endl;
                 std::cout << "Child Group: " << getppid() << std::endl;
 
@@ -442,7 +381,7 @@ int main(int argc, char *argv[])
         #elif _WIN32
             std::string cmd = "/c " + std::string(argv[0]) + " -t run -d " + directory + " -c " + command;
             // std::string cmd = std::string(argv[0]) + " -t run -d " + directory + " -c " + command;
-            
+
             TCHAR* szCmdline = new TCHAR[strlen(cmd.c_str()) + 1];
             mbstowcs(szCmdline, cmd.c_str(), strlen(cmd.c_str()) + 1);
 
@@ -451,7 +390,7 @@ int main(int argc, char *argv[])
 
             TCHAR* szPassword = new TCHAR[strlen(upassword.c_str()) + 1];
             mbstowcs(szPassword, upassword.c_str(), strlen(upassword.c_str()) + 1);
-            
+
 
             HANDLE hUserToken;
 			TOKEN_PRIVILEGES tp;
@@ -531,7 +470,7 @@ int main(int argc, char *argv[])
             fclose(stderr);
         #endif
     }
-    else if (type == "stop") {
+    else if (cmd_type == "stop") {
         boost::filesystem::current_path(&directory[0]);
 
         int pid;
@@ -543,10 +482,10 @@ int main(int argc, char *argv[])
             std::cerr << "PID file open error" << std::endl;
             unsigned int pcount = count_proc_in_path(&directory[0]);
             std::cout << "pcount: " << pcount << std::endl;
-            
+
             if (pcount == 1) {
                 pid = find_pid_by_path(&directory[0]);
-                
+
                 if (pid == -1) {
                     std::cerr << "Pid not found" << std::endl;
                     return 0;
@@ -594,11 +533,11 @@ int main(int argc, char *argv[])
                 return 3;
             }
         }
-        
+
         // boost::filesystem::remove(GAS_PID_FILE);
     }
 #ifdef _WIN32
-    else if (type == "run") {
+    else if (cmd_type == "run") {
         try {
             run();
         } catch (std::exception &e) {
@@ -607,9 +546,9 @@ int main(int argc, char *argv[])
         }
     }
 #endif
-    else if (type == "status") {
+    else if (cmd_type == "status") {
         bool active = server_status();
-        
+
         if (active) {
             std::cout << "Server still active" << std::endl;
             return 0;
