@@ -313,8 +313,15 @@ int main(int argc, char *argv[])
 					argv_str = '"' + argv_str + '"';
 				}
 
-                command = (command == "") ? command + argv_str : command + " " + argv_str;
+                command = (command.empty())
+                        ? command + argv_str
+                        : command + std::string(" ") + argv_str;
                 i++;
+            }
+
+            // Cut quotes
+            if (!command.empty() && command[0] == '"' && command[command.length()-1] == '"') {
+                command = command.substr(1, command.length()-2);
             }
 
             i++;
