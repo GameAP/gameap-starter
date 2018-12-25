@@ -11,7 +11,22 @@ cmake_minimum_required(VERSION 2.8)
 
 add_definitions(-std=c++11)
 
-set(Boost_USE_STATIC_LIBS ON)
+if (BUILD_STATIC)
+	set(BUILD_STATIC_BOOST ON)
+
+	message( STATUS "Build static" )
+
+	if (UNIX)
+		set(CMAKE_FIND_LIBRARY_SUFFIXES ".a;.so")
+	endif()
+
+	set(BUILD_SHARED_LIBS OFF)
+	set(CMAKE_EXE_LINKER_FLAGS "-static -static-libgcc -static-libstdc++")
+endif()
+
+if (BUILD_STATIC_BOOST)
+	set(Boost_USE_STATIC_LIBS ON)
+endif()
 
 find_package(Boost COMPONENTS system REQUIRED)
 if(NOT Boost_FOUND)
@@ -29,6 +44,12 @@ add_executable(starter
     proc.cpp
     main.cpp
 )
+
+
+if (BUILD_STATIC)
+	set_target_properties(starter PROPERTIES LINK_SEARCH_START_STATIC 1)
+	set_target_properties(starter PROPERTIES LINK_SEARCH_END_STATIC 1)
+endif()
 
 target_link_libraries (starter pthread boost_system boost_filesystem boost_iostreams)
 # target_link_libraries (starter boost_system-mgw49-mt boost_iostreams-mgw49-mt boost_filesystem-mgw49-mt)
