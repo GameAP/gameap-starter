@@ -215,7 +215,7 @@ bool server_status()
 {
     char bufread[32];
 
-    pid_t pid;
+    pid_t pid = 0;
 
     boost::filesystem::current_path(&directory[0]);
     boost::filesystem::path p(&directory[0]);
@@ -226,11 +226,10 @@ bool server_status()
 
     if (pidfile.good()) {
         pidfile.getline(bufread, 32);
-        pidfile.close();
 
         pid = atoi(bufread);
     } else {
-        std::cout << "Pidfile " << p << " read error" << std::endl;
+        std::cerr << "Pidfile " << p << " read error" << std::endl;
         unsigned int pcount = count_proc_in_path(&directory[0]);
         std::cout << "pcount: " << pcount << std::endl;
 
@@ -239,17 +238,18 @@ bool server_status()
 
             if (pid == -1) {
                 std::cerr << "Pid not found" << std::endl;
-                return 0;
+                return false;
             }
         }
     }
+
+    pidfile.close();
 
     bool active = false;
 
     if (pid != 0) {
         #ifdef __linux__
-            active = (kill(pid, 0) == 0) ? 1 : 0;
-
+            active = kill(pid, 0) == 0;
         #elif _WIN32
 			active = isRunning(pid);
         #endif
@@ -259,17 +259,17 @@ bool server_status()
 		unsigned int pcount = count_proc_in_path(&directory[0]);
 
 		if (pcount > 0) {
-            unsigned int fpid = find_pid_by_path(&directory[0]);
+            pid_t fpid = find_pid_by_path(&directory[0]);
             
-            if (fpid != pid) {
+            if (fpid != pid && fpid > 1) {
                 // Write new pid
                 std::ofstream pidfile;
                 pidfile.open(GAS_PID_FILE, std::ofstream::out | std::ofstream::trunc);
                 pidfile << fpid;
                 pidfile.close();
-            }
 
-			active = true;
+                active = true;
+            }
 		}
 	}
 

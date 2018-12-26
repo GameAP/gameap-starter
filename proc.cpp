@@ -33,7 +33,7 @@ pid_t find_pid_by_path(const char *path)
     pid_t pid = -1;
     glob_t pglob;
 
-    if (glob("/proc/*/exe", 0, NULL, &pglob) != 0)
+    if (glob("/proc/*/exe", 0, nullptr, &pglob) != 0)
         return -1;
 
     char buff[PATH_MAX];
@@ -61,7 +61,7 @@ pid_t find_pid_by_path(const char *path)
     globfree(&pglob);
 
     if (pid == -1) {
-        if (glob("/proc/*/cwd", 0, NULL, &pglob) != 0)
+        if (glob("/proc/*/cwd", 0, nullptr, &pglob) != 0)
             return -1;
 
         for (unsigned i = 0; i < pglob.gl_pathc; ++i) {
@@ -92,7 +92,7 @@ unsigned int count_proc_in_path(const char *path)
     pid_t pid = -1;
     glob_t pglob;
 
-    if (glob("/proc/*/exe", 0, NULL, &pglob) != 0)
+    if (glob("/proc/*/exe", 0, nullptr, &pglob) != 0)
         return -1;
 
     char buff[PATH_MAX];
@@ -119,7 +119,7 @@ unsigned int count_proc_in_path(const char *path)
     globfree(&pglob);
 
     if (pid == -1) {
-        if (glob("/proc/*/cwd", 0, NULL, &pglob) != 0)
+        if (glob("/proc/*/cwd", 0, nullptr, &pglob) != 0)
             return -1;
 
         for (unsigned i = 0; i < pglob.gl_pathc; ++i) {
@@ -147,7 +147,7 @@ void killall(const char *path)
     pid_t pid = -1;
     glob_t pglob;
 
-    if (glob("/proc/*/exe", 0, NULL, &pglob) != 0)
+    if (glob("/proc/*/exe", 0, nullptr, &pglob) != 0)
         return;
 
     char buff[PATH_MAX];
@@ -182,7 +182,7 @@ void killall(const char *path)
     globfree(&pglob);
 
 
-    //if (glob("/proc/*/cwd", 0, NULL, &pglob) != 0)
+    //if (glob("/proc/*/cwd", 0, nullptr, &pglob) != 0)
     //    return;
 
     /*
@@ -234,7 +234,7 @@ std::string exec(std::string cmd) {
     if (!pipe) throw std::runtime_error("popen() failed!");
 
     while (!feof(pipe.get())) {
-        if (fgets(buffer, 128, pipe.get()) != NULL)
+        if (fgets(buffer, 128, pipe.get()) != nullptr)
             result += buffer;
     }
     return result;
