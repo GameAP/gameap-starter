@@ -80,7 +80,7 @@ void show_help()
     std::cout << "GitHub: https://github.com/et-nik \n";
     std::cout << "Site: http://www.gameap.ru \n";
 
-    std::cout << "Version: 0.2\n";
+    std::cout << "Version: 0.3\n";
     std::cout << "Build date: " << __DATE__ << " " << __TIME__ << std::endl << std::endl;
 
     std::cout << "Parameters\n";
@@ -229,19 +229,6 @@ bool server_status()
         pidfile.getline(bufread, 32);
 
         pid = atoi(bufread);
-    } else {
-        std::cerr << "Pidfile " << p << " read error" << std::endl;
-        unsigned int pcount = count_proc_in_path(&directory[0]);
-        std::cout << "pcount: " << pcount << std::endl;
-
-        if (pcount == 1) {
-            pid = find_pid_by_path(&directory[0]);
-
-            if (pid == -1) {
-                std::cerr << "Pid not found" << std::endl;
-                return false;
-            }
-        }
     }
 
     pidfile.close();
@@ -260,7 +247,7 @@ bool server_status()
 		unsigned int pcount = count_proc_in_path(&directory[0]);
 		if (pcount > 0) {
             pid_t fpid = find_pid_by_path(&directory[0]);
-            
+
             if (fpid != pid && fpid > 1) {
                 // Write new pid
                 std::ofstream pidfile;

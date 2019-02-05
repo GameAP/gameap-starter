@@ -26,188 +26,95 @@
 
 #ifdef __linux__
 
+#include <boost/filesystem.hpp>
+
+namespace fs = boost::filesystem;
+
+// ---------------------------------------------------------------------
+
+std::vector<pid_t> find_pids(const char *path)
+{
+    pid_t starter_pid = getpid();
+    pid_t pid = -1;
+
+    std::vector<pid_t> result;
+
+    for(auto& p: fs::directory_iterator("/proc")) {
+        if (fs::is_directory(p)) {
+
+            fs::path exe = p / "exe";
+            fs::path cwd = p / "cwd";
+
+            int cpid = atoi(p.path().filename().c_str());
+
+            if (cpid <= 0) {
+                continue;
+            }
+
+            if (cpid == starter_pid) {
+                continue;
+            }
+
+            try {
+
+                if (fs::exists(exe) && fs::is_symlink(exe)) {
+                    exe = fs::read_symlink(exe);
+                    cwd = fs::read_symlink(cwd);
+
+                    // Ignore shell
+                    if (exe.filename() == "bash"
+                        || exe.filename() == "rbash"
+                        || exe.filename() == "dash"
+                        || exe.filename() == "sh"
+                            ) {
+                        continue;
+                    }
+
+                    std::string filename = exe.filename().string();
+
+                    if (strcmp(exe.parent_path().c_str(), path) == 0) {
+                        result.insert(result.end(), cpid);
+                    } else if (strcmp(cwd.c_str(), path) == 0) {
+                        result.insert(result.end(), cpid);
+                    }
+                }
+            } catch (fs::filesystem_error &e) {
+                continue;
+            }
+
+        }
+    }
+
+    return result;
+}
+
 // ---------------------------------------------------------------------
 
 pid_t find_pid_by_path(const char *path)
 {
-    pid_t pid = -1;
-    glob_t pglob;
-
-    if (glob("/proc/*/exe", 0, nullptr, &pglob) != 0)
-        return -1;
-
-    char buff[PATH_MAX];
-    char pbuff[PATH_MAX];
-
-    for (unsigned i = 0; i < pglob.gl_pathc; ++i) {
-        ssize_t len = ::readlink(pglob.gl_pathv[i], buff, sizeof(buff)-1);
-
-        if (len == -1) continue;
-
-        buff[len] = '\0';
-
-        char * lslash = strrchr(buff, '/');
-        memcpy(pbuff, buff, (lslash - buff));
-        pbuff[(lslash - buff)] = '\0';
-
-        if (strcmp(path, pbuff) == 0) {
-            pid = (pid_t)atoi(pglob.gl_pathv[i] + strlen("/proc/"));
-
-            if (pid == getpid()) continue;
-            else break;
-        }
-    }
-
-    globfree(&pglob);
-
-    if (pid == -1) {
-        if (glob("/proc/*/cwd", 0, nullptr, &pglob) != 0)
-            return -1;
-
-        for (unsigned i = 0; i < pglob.gl_pathc; ++i) {
-            ssize_t len = ::readlink(pglob.gl_pathv[i], buff, sizeof(buff)-1);
-
-            if (len == -1) continue;
-
-            buff[len] = '\0';
-
-            if (strcmp(path, buff) == 0) {
-                pid = (pid_t)atoi(pglob.gl_pathv[i] + strlen("/proc/"));
-
-                if (pid == getpid()) continue;
-                else break;
-            }
-        }
-    }
-
-    globfree(&pglob);
-
-    return pid;
+    return find_pids(path).front();
 }
 
 // ---------------------------------------------------------------------
 
 unsigned int count_proc_in_path(const char *path)
 {
-    pid_t pid = -1;
-    glob_t pglob;
-
-    if (glob("/proc/*/exe", 0, nullptr, &pglob) != 0)
-        return -1;
-
-    char buff[PATH_MAX];
-    char pbuff[PATH_MAX];
-
-    unsigned int pcount = 0;
-
-    for (unsigned i = 0; i < pglob.gl_pathc; ++i) {
-        ssize_t len = ::readlink(pglob.gl_pathv[i], buff, sizeof(buff)-1);
-
-        if (len == -1) continue;
-
-        buff[len] = '\0';
-
-        char * lslash = strrchr(buff, '/');
-        memcpy(pbuff, buff, (lslash - buff));
-        pbuff[(lslash - buff)] = '\0';
-
-        if (strcmp(path, pbuff) == 0) {
-            pcount++;
-        }
-    }
-
-    globfree(&pglob);
-
-    if (pid == -1) {
-        if (glob("/proc/*/cwd", 0, nullptr, &pglob) != 0)
-            return -1;
-
-        for (unsigned i = 0; i < pglob.gl_pathc; ++i) {
-            ssize_t len = ::readlink(pglob.gl_pathv[i], buff, sizeof(buff)-1);
-
-            if (len == -1) continue;
-
-            buff[len] = '\0';
-
-            if (strcmp(path, buff) == 0) {
-                pcount++;
-            }
-        }
-    }
-
-    globfree(&pglob);
-
-    return pcount;
+    return static_cast<unsigned int>(find_pids(path).size());
 }
 
 // ---------------------------------------------------------------------
 
 void killall(const char *path)
 {
-    pid_t pid = -1;
-    glob_t pglob;
+    std::vector<pid_t> pids = find_pids(path);
 
-    if (glob("/proc/*/exe", 0, nullptr, &pglob) != 0)
-        return;
+    for (const pid_t& pid : find_pids(path)) {
+        std::cout << "Killing: " << pid << std::endl;
 
-    char buff[PATH_MAX];
-    char pbuff[PATH_MAX];
-
-    for (unsigned i = 0; i < pglob.gl_pathc; ++i) {
-        ssize_t len = ::readlink(pglob.gl_pathv[i], buff, sizeof(buff)-1);
-
-        if (len == -1) continue;
-
-        buff[len] = '\0';
-
-        char * lslash = strrchr(buff, '/');
-        memcpy(pbuff, buff, (lslash - buff));
-        pbuff[(lslash - buff)] = '\0';
-
-        if (strcmp(path, pbuff) == 0) {
-            pid = (pid_t)atoi(pglob.gl_pathv[i] + strlen("/proc/"));
-
-            if (pid == getpid()) continue;
-
-            std::cout << "Killing: " << pid << std::endl;
-
-            if (kill(pid, SIGTERM) != 0) {
-                std::cerr << "Stop error (killall): " << strerror(errno) << std::endl;
-            }
-
-            break;
+        if (kill(pid, SIGTERM) != 0) {
+            std::cerr << "Stop error (killall): " << strerror(errno) << std::endl;
         }
     }
-
-    globfree(&pglob);
-
-
-    //if (glob("/proc/*/cwd", 0, nullptr, &pglob) != 0)
-    //    return;
-
-    /*
-    for (unsigned i = 0; i < pglob.gl_pathc; ++i) {
-        ssize_t len = ::readlink(pglob.gl_pathv[i], buff, sizeof(buff)-1);
-
-        if (len == -1) continue;
-
-        buff[len] = '\0';
-
-        if (strcmp(path, buff) == 0) {
-            pid = (pid_t)atoi(pglob.gl_pathv[i] + strlen("/proc/"));
-
-            if (pid == getpid()) continue;
-
-            std::cout << "Killing: " << pid << std::endl;
-
-            if (kill(pid, SIGTERM) != 0) {
-                std::cerr << "Stop error (killall): " << strerror(errno) << std::endl;
-            }
-        }
-    }
-    */
-
-    globfree(&pglob);
 }
 
 #elif _WIN32
