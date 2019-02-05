@@ -57,6 +57,7 @@ using namespace boost::iostreams;
 
 namespace bp = boost::process;
 namespace bi = boost::iostreams;
+namespace fs = boost::filesystem;
 
 std::string cmd_type    = "";
 std::string command     = "";
@@ -95,7 +96,7 @@ void show_help()
 
 void run()
 {
-	boost::filesystem::current_path(&directory[0]);
+	fs::current_path(&directory[0]);
 
     size_t arg_start = command.find(' ');
     std::string exe = command.substr(0, arg_start);
@@ -217,8 +218,8 @@ bool server_status()
 
     pid_t pid = 0;
 
-    boost::filesystem::current_path(&directory[0]);
-    boost::filesystem::path p(&directory[0]);
+    fs::current_path(&directory[0]);
+    fs::path p(&directory[0]);
     p /= "pid.txt";
 
     std::ifstream pidfile;
@@ -257,7 +258,6 @@ bool server_status()
 
 	if (!active) {
 		unsigned int pcount = count_proc_in_path(&directory[0]);
-
 		if (pcount > 0) {
             pid_t fpid = find_pid_by_path(&directory[0]);
             
@@ -478,7 +478,7 @@ int main(int argc, char *argv[])
         #endif
     }
     else if (cmd_type == "stop") {
-        boost::filesystem::current_path(&directory[0]);
+        fs::current_path(&directory[0]);
 
         int pid;
 
@@ -541,7 +541,7 @@ int main(int argc, char *argv[])
             }
         }
 
-        // boost::filesystem::remove(GAS_PID_FILE);
+        // fs::remove(GAS_PID_FILE);
     }
 #ifdef _WIN32
     else if (cmd_type == "run") {
