@@ -119,8 +119,8 @@ void run()
     bp::async_pipe pipe_in(ios);
     bp::opstream in;
 
-    bp::child c(bp::search_path(PROC_SHELL),
-                bp::args={SHELL_PREF, command},
+    bp::child c(exe,
+                bp::args={args},
                 (bp::std_out & bp::std_err) > GAS_OUTPUT_FILE,
                 bp::std_in < pipe_in,
                 ios,
