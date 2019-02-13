@@ -21,6 +21,9 @@
 #include <iostream>
 #include <cstring>
 #include <stdlib.h>
+#include <map>
+#include <fstream>
+#include <sstream>
 
 #include "proc.h"
 
@@ -29,6 +32,105 @@
 #include <boost/filesystem.hpp>
 
 namespace fs = boost::filesystem;
+
+#define PROC_PPID_LINE_NUM      6
+#define PROC_PPID_VALUE_NUM     1
+
+// ---------------------------------------------------------------------
+
+std::map<int, std::list<int>> process_childs()
+{
+    int cpid = 0;
+    std::map<int, std::list<int>> childs;
+
+    auto explode = [](std::string const & s, char delim) {
+        std::istringstream iss(s);
+        std::vector<std::string> result;
+        for (std::string token; std::getline(iss, token, delim); )
+        {
+            result.push_back(std::move(token));
+        }
+
+        return result;
+    };
+
+    for(auto& p: fs::directory_iterator("/proc")) {
+        if (!fs::is_directory(p)) {
+            continue;
+        }
+
+        cpid = std::stoi(p.path().filename().c_str());
+
+        if (cpid <= 0) {
+            continue;
+        }
+
+        fs::path proc_status_path = p / "status";
+
+        if (!fs::exists(proc_status_path)) {
+            continue;
+        }
+
+        char buf[1024];
+        std::ifstream proc_status;
+        proc_status.open(proc_status_path.c_str(), std::ios::in);
+
+        if (!proc_status.good()) {
+            continue;
+        }
+
+        proc_status.read(buf, 1024);
+
+        std::vector<std::string> result = explode(buf, '\n');
+
+        if (result.size() <= PROC_PPID_LINE_NUM) {
+            continue;
+        }
+
+        std::vector<std::string> ppid_result = explode(result[PROC_PPID_LINE_NUM], '\t');
+
+        if (ppid_result.size() <= PROC_PPID_VALUE_NUM) {
+            continue;
+        }
+
+        int parent_pid = std::stoi(ppid_result[PROC_PPID_VALUE_NUM]);;
+
+        if (parent_pid > 0) {
+            if (childs.find(parent_pid) == childs.end()) {
+                childs.insert(std::make_pair(parent_pid, std::list<int>{cpid}));
+            } else {
+                childs[parent_pid].push_back(cpid);
+            }
+        }
+    }
+
+    return childs;
+}
+
+// ---------------------------------------------------------------------
+
+void killtree(pid_t pid)
+{
+    std::map<int, std::list<int>> childs = process_childs();
+
+    if (childs.find(pid) != childs.end()) {
+        std::list<int> ch = childs[pid];
+
+        for (const int& cpid : ch) {
+            std::cout << "Killing child: " << cpid << '\n';
+
+            if (kill(cpid, SIGTERM) != 0) {
+                std::cerr << "Stop error (killall): " << strerror(errno) << std::endl;
+            }
+        }
+    }
+
+    std::cout << "Killing: " << pid << '\n';
+
+    if (kill(pid, SIGTERM) != 0) {
+        std::cerr << "Stop error (killall): " << strerror(errno) << std::endl;
+    }
+}
 
 // ---------------------------------------------------------------------
 
@@ -66,6 +168,7 @@ std::vector<pid_t> find_pids(const char *path)
                         || exe.filename() == "rbash"
                         || exe.filename() == "dash"
                         || exe.filename() == "sh"
+                        || exe.filename() == "gameap-starter"
                             ) {
                         continue;
                     }
