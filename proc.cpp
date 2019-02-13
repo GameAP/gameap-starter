@@ -59,7 +59,11 @@ std::map<int, std::list<int>> process_childs()
             continue;
         }
 
-        cpid = std::stoi(p.path().filename().c_str());
+        try {
+            cpid = std::stoi(p.path().filename().c_str());
+        } catch (std::invalid_argument &e) {
+            continue;
+        }
 
         if (cpid <= 0) {
             continue;
@@ -166,8 +170,6 @@ std::vector<pid_t> find_pids(const char *path)
                     // Ignore shell
                     if (exe.filename() == "bash"
                         || exe.filename() == "rbash"
-                        || exe.filename() == "dash"
-                        || exe.filename() == "sh"
                         || exe.filename() == "gameap-starter"
                             ) {
                         continue;
