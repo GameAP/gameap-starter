@@ -322,6 +322,7 @@ int main(int argc, char *argv[])
 	std::cout << "Type: " << cmd_type << std::endl;
 
     if (cmd_type == "start") {
+
         #ifdef __linux__
             passwd * pwd;
             if (!user.empty()) {
@@ -467,7 +468,7 @@ int main(int argc, char *argv[])
     else if (cmd_type == "stop") {
         fs::current_path(&directory[0]);
 
-        int pid;
+        int pid = 0;
 
         std::fstream pidfile;
         pidfile.open(GAS_PID_FILE, std::ifstream::in);
@@ -480,9 +481,9 @@ int main(int argc, char *argv[])
             if (pcount == 1) {
                 pid = find_pid_by_path(&directory[0]);
 
-                if (pid == -1) {
+                if (pid > 0) {
                     std::cerr << "Pid not found" << std::endl;
-                    return 0;
+                    return 1;
                 }
             } else if (pcount > 1) {
                 killall(&directory[0]);
@@ -496,7 +497,9 @@ int main(int argc, char *argv[])
 
         pidfile.close();
 
-        if (!server_status()) {
+        bool active = kill(pid, 0) == 0;
+
+        if (!active) {
             pid = find_pid_by_path(&directory[0]);
 
             // Kill all in dir. AHAHAHAHAAA!!!
@@ -507,11 +510,9 @@ int main(int argc, char *argv[])
 
             std::cout << "PID: " << pid << std::endl;
 
-            if (pid != -1) {
+            if (pid > 0) {
                 #ifdef __linux__
-                    if (kill(pid, SIGTERM) != 0) {
-                        std::cerr << "Stop error: " << strerror(errno) << std::endl;
-                    }
+                    killtree(pid);
                 #elif _WIN32
 					std::string stpid;
 					//itoa(pid, &stpid[0], 10);
