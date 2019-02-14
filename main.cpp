@@ -89,7 +89,7 @@ void show_help()
     std::cout << "-c <command>  (example 'hlds_run -game valve +ip 127.0.0.1 +port 27015 +map crossfire')\n\n";
 
     std::cout << "Examples:\n";
-    std::cout << "./starter -t start -d /home/servers/hlds -c \"hlds_run -game valve +ip 127.0.0.1 +port 27015 +map crossfire\"\n";
+    std::cout << "gameap-starter -t start -d /home/servers/hlds -c \"hlds_run -game valve +ip 127.0.0.1 +port 27015 +map crossfire\"\n";
 }
 
 // ---------------------------------------------------------------------
@@ -157,11 +157,7 @@ void run()
     fclose(stderr);
 
     if (!no_stdin) {
-        while(true) {
-            if (!c.running()) {
-                break;
-            }
-
+        while(c.running()) {
             coninput.open(GAS_INPUT_FILE, std::ifstream::in);
             getline(coninput, input_line);
 
@@ -184,7 +180,8 @@ void run()
         }
     }
 
-    ios.run();
+    c.wait();
+    ios.stop();
 }
 
 #ifdef _WIN32
@@ -344,8 +341,7 @@ int main(int argc, char *argv[])
             pid_t pid = fork();
 
             if (pid == -1) {
-                std::cerr << "Fork error" << std::endl;
-                return 1;
+                exit(1);
             }
 
             if (pid != 0) {
@@ -359,10 +355,7 @@ int main(int argc, char *argv[])
                 signal(SIGHUP, SIG_IGN);
                 setpgrp();
 
-                std::cout << "Child PID: " << getpid() << std::endl;
-                std::cout << "Child Group: " << getppid() << std::endl;
-
-                if (user != "") {
+                if (user.empty()) {
                     setgid(pwd->pw_gid);
                     setuid(pwd->pw_uid);
                 }

@@ -197,7 +197,13 @@ std::vector<pid_t> find_pids(const char *path)
 
 pid_t find_pid_by_path(const char *path)
 {
-    return find_pids(path).front();
+    std::vector<pid_t> pids = find_pids(path);
+
+    if (pids.size() > 0) {
+        return find_pids(path).front();
+    } else {
+        return 0;
+    }
 }
 
 // ---------------------------------------------------------------------
