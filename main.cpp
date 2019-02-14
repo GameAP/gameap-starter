@@ -498,6 +498,7 @@ int main(int argc, char *argv[])
             // Kill all in dir. AHAHAHAHAAA!!!
             if (pid > 0) {
                 killall(&directory[0]);
+                fs::remove(GAS_PID_FILE);
             }
         } else {
 
@@ -516,13 +517,13 @@ int main(int argc, char *argv[])
 					std::cout << "CMD KILL: " << cmd_kill_str << std::endl;
                     system(&cmd_kill_str[0]);
                 #endif
+
+                fs::remove(GAS_PID_FILE);
             } else {
                 std::cerr << "Server not running" << std::endl;
                 return 3;
             }
         }
-
-        // fs::remove(GAS_PID_FILE);
     }
 #ifdef _WIN32
     else if (cmd_type == "run") {
