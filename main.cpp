@@ -465,8 +465,9 @@ int main(int argc, char *argv[])
 
         std::fstream pidfile;
         pidfile.open(GAS_PID_FILE, std::ifstream::in);
+        bool pidfile_good = pidfile.good();
 
-        if (!pidfile.good()) {
+        if (!pidfile_good) {
             std::cerr << "PID file open error" << std::endl;
             unsigned int pcount = count_proc_in_path(&directory[0]);
             std::cout << "pcount: " << pcount << std::endl;
@@ -498,7 +499,6 @@ int main(int argc, char *argv[])
             // Kill all in dir. AHAHAHAHAAA!!!
             if (pid > 0) {
                 killall(&directory[0]);
-                fs::remove(GAS_PID_FILE);
             }
         } else {
 
@@ -517,12 +517,14 @@ int main(int argc, char *argv[])
 					std::cout << "CMD KILL: " << cmd_kill_str << std::endl;
                     system(&cmd_kill_str[0]);
                 #endif
-
-                fs::remove(GAS_PID_FILE);
             } else {
                 std::cerr << "Server not running" << std::endl;
                 return 3;
             }
+        }
+
+        if (pidfile_good) {
+            fs::remove(GAS_PID_FILE);
         }
     }
 #ifdef _WIN32
