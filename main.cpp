@@ -34,7 +34,7 @@
 #define GAS_INPUT_FILE "input.txt"
 #define GAS_OUTPUT_FILE "output.txt"
 
-#if defined(BOOST_POSIX_API)
+#ifdef BOOST_POSIX_API
     #define PROC_SHELL "sh"
     #define SHELL_PREF "-c"
 #elif defined(BOOST_WINDOWS_API)
@@ -359,7 +359,7 @@ int main(int argc, char *argv[])
         #elif _WIN32
             std::string cmd = "/c " + std::string(argv[0]) + " -t run -d " + directory + " -c " + command;
 
-            HANDLE hUserToken;
+            PHANDLE hUserToken(nullptr);
 			TOKEN_PRIVILEGES tp;
             PROCESS_INFORMATION pi;
             STARTUPINFO         si;
@@ -373,7 +373,7 @@ int main(int argc, char *argv[])
 			si.dwFlags = STARTF_USESTDHANDLES | STARTF_USESHOWWINDOW;
 			si.wShowWindow = SW_HIDE;
 
-            if (user != "" && upassword != "") {
+            if (!user.empty() && !upassword.empty()) {
 
                 if (!LogonUser(
                     user.c_str(),
@@ -381,7 +381,7 @@ int main(int argc, char *argv[])
                     upassword.c_str(),
                     LOGON32_LOGON_INTERACTIVE,
                     LOGON32_PROVIDER_DEFAULT,
-                    &hUserToken
+                    hUserToken
                 )) {
                     std::cerr << "LogonUser error: " << GetLastError() << std::endl;
                     return 1;
@@ -389,7 +389,7 @@ int main(int argc, char *argv[])
 
                 if (!CreateProcessAsUser(
                     hUserToken,
-					"cmd.exe",
+                    bp::detail::windows::shell_path().string().c_str(),
                     &cmd[0],
                     NULL,
                     NULL,
@@ -405,10 +405,8 @@ int main(int argc, char *argv[])
                 }
             }
             else {
-                // std::string shell_path = bp::shell_path().string();
-
                 if (!CreateProcess(
-                    "cmd.exe",
+                    bp::detail::windows::shell_path().string().c_str(),
                     &cmd[0],
                     NULL,
                     NULL,
