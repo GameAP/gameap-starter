@@ -6,7 +6,12 @@
 #include <map>
 #include <list>
 
-// typedef unsigned long pid_t;
+#ifdef _WIN32
+    typedef unsigned int uint;
+    typedef unsigned short ushort;
+    typedef unsigned long ulong;
+    typedef int pid_t;
+#endif
 
 pid_t find_pid_by_path(const char *path);
 void killall(const char *path);

@@ -6,6 +6,14 @@
 #include <cstdio>
 #include <sys/types.h>
 
+#include <cstdlib>
+#include <fstream>
+
+#include <boost/filesystem.hpp>
+#include <boost/process.hpp>
+#include <boost/asio/io_service.hpp>
+#include <boost/iostreams/stream.hpp>
+
 #ifdef __linux__
     #include <thread>
     #include <unistd.h>
@@ -14,30 +22,11 @@
     #include <pwd.h>
     #include <sys/stat.h>
 #elif _WIN32
-	#include <process.h>
+    #include <process.h>
 
-	#include <windows.h>
-	#include <tlhelp32.h>
-	#include <tchar.h>
-
-	#if DEBUG
-		#pragma comment(lib, "libboost_system-vc100-mt-gd-1_60.lib")
-		#pragma comment(lib, "libboost_filesystem-vc100-mt-gd-1_60.lib")
-		#pragma comment(lib, "libboost_iostreams-vc100-mt-gd-1_60.lib")
-	#else
-		#pragma comment(lib, "libboost_system-vc100-mt-1_60.lib")
-		#pragma comment(lib, "libboost_filesystem-vc100-mt-1_60.lib")
-		#pragma comment(lib, "libboost_iostreams-vc100-mt-1_60.lib")
-	#endif
-
+    #include <tlhelp32.h>
+    #include <tchar.h>
 #endif
-
-#include <cstdlib>
-#include <fstream>
-
-#include <boost/filesystem.hpp>
-#include <boost/process.hpp>
-#include <boost/iostreams/stream.hpp>
 
 #include "proc.h"
 
@@ -205,6 +194,7 @@ bool isRunning(int pid)
 
 	return false;
 }
+
 #endif
 
 // ---------------------------------------------------------------------
@@ -368,17 +358,6 @@ int main(int argc, char *argv[])
             }
         #elif _WIN32
             std::string cmd = "/c " + std::string(argv[0]) + " -t run -d " + directory + " -c " + command;
-            // std::string cmd = std::string(argv[0]) + " -t run -d " + directory + " -c " + command;
-
-            TCHAR* szCmdline = new TCHAR[strlen(cmd.c_str()) + 1];
-            mbstowcs(szCmdline, cmd.c_str(), strlen(cmd.c_str()) + 1);
-
-            TCHAR* szUser = new TCHAR[strlen(user.c_str()) + 1];
-            mbstowcs(szUser, user.c_str(), strlen(user.c_str()) + 1);
-
-            TCHAR* szPassword = new TCHAR[strlen(upassword.c_str()) + 1];
-            mbstowcs(szPassword, upassword.c_str(), strlen(upassword.c_str()) + 1);
-
 
             HANDLE hUserToken;
 			TOKEN_PRIVILEGES tp;
@@ -390,16 +369,16 @@ int main(int argc, char *argv[])
             ZeroMemory(&pi, sizeof(pi));
 
 			// si.lpDesktop = "";
-            si.lpDesktop = L"winsta0\\default";
+            si.lpDesktop = "winsta0\\default";
 			si.dwFlags = STARTF_USESTDHANDLES | STARTF_USESHOWWINDOW;
 			si.wShowWindow = SW_HIDE;
 
             if (user != "" && upassword != "") {
 
                 if (!LogonUser(
-                    szUser,
+                    user.c_str(),
                     NULL,
-                    szPassword,
+                    upassword.c_str(),
                     LOGON32_LOGON_INTERACTIVE,
                     LOGON32_PROVIDER_DEFAULT,
                     &hUserToken
@@ -410,8 +389,8 @@ int main(int argc, char *argv[])
 
                 if (!CreateProcessAsUser(
                     hUserToken,
-					bp::shell_path().wstring().c_str(),
-                    szCmdline,
+					"cmd.exe",
+                    &cmd[0],
                     NULL,
                     NULL,
                     FALSE,
@@ -429,8 +408,8 @@ int main(int argc, char *argv[])
                 // std::string shell_path = bp::shell_path().string();
 
                 if (!CreateProcess(
-                    bp::shell_path().wstring().c_str(),
-                    szCmdline,
+                    "cmd.exe",
+                    &cmd[0],
                     NULL,
                     NULL,
                     FALSE,
@@ -448,10 +427,6 @@ int main(int argc, char *argv[])
             CloseHandle(hUserToken);
             CloseHandle(pi.hProcess);
             CloseHandle(pi.hThread);
-
-            delete szCmdline;
-            delete szUser;
-            delete szPassword;
 
             fclose(stdin);
             fclose(stdout);
@@ -491,8 +466,11 @@ int main(int argc, char *argv[])
 
         pidfile.close();
 
+#ifdef __linux__
         bool active = kill(pid, 0) == 0;
-
+#elif _WIN32
+        bool active = isRunning(pid);
+#endif
         if (!active) {
             pid = find_pid_by_path(&directory[0]);
 
@@ -512,7 +490,7 @@ int main(int argc, char *argv[])
 					//itoa(pid, &stpid[0], 10);
 					//stpid = std::string(itoa(pid));
 
-					std::string cmd_kill_str = "taskkill /F /PID " + std::to_string((_Longlong)pid);
+					std::string cmd_kill_str = "taskkill /F /PID " + std::to_string((int)pid);
 					std::cout << "stpid: " << stpid << std::endl;
 					std::cout << "CMD KILL: " << cmd_kill_str << std::endl;
                     system(&cmd_kill_str[0]);

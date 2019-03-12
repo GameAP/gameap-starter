@@ -299,7 +299,7 @@ unsigned int count_proc_in_path(const char *path)
         }
     }
     
-    std::cout << "count_proc_in_path: " << pid << std::endl;
+    std::cout << "count_proc_in_path: " << pcount << std::endl;
 
     return pcount;
 }
