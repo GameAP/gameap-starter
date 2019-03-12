@@ -37,9 +37,13 @@
 #ifdef BOOST_POSIX_API
     #define PROC_SHELL "sh"
     #define SHELL_PREF "-c"
+
+    #define EXAMPLE_START_CMD = "./hlds_run -game valve +ip 127.0.0.1 +port 27015 +map crossfire"
 #elif defined(BOOST_WINDOWS_API)
     #define PROC_SHELL "cmd"
     #define SHELL_PREF "/c"
+
+    #define EXAMPLE_START_CMD "hlds.exe -console -game valve +ip 127.0.0.1 +port 27015 +map crossfire"
 #endif
 
 using namespace boost::iostreams;
@@ -75,10 +79,10 @@ void show_help()
     std::cout << "Parameters\n";
     std::cout << "-t <cmd_type>\n";
     std::cout << "-d <work dir>\n";
-    std::cout << "-c <command>  (example 'hlds_run -game valve +ip 127.0.0.1 +port 27015 +map crossfire')\n\n";
+    std::cout << "-c <command>  (example '" << EXAMPLE_START_CMD << "')\n\n";
 
     std::cout << "Examples:\n";
-    std::cout << "gameap-starter -t start -d /home/servers/hlds -c \"hlds_run -game valve +ip 127.0.0.1 +port 27015 +map crossfire\"\n";
+    std::cout << "gameap-starter -t start -d /home/servers/hlds -c \"" << EXAMPLE_START_CMD << "\"\n";
 }
 
 // ---------------------------------------------------------------------
