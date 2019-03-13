@@ -49,8 +49,9 @@ if (BUILD_STATIC)
 	set_target_properties(gameap-starter PROPERTIES LINK_SEARCH_END_STATIC 1)
 endif()
 
-
 target_link_libraries (gameap-starter ${Boost_LIBRARIES})
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC" )
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC" )
+if (CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC" )
+	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC" )
+endif()
