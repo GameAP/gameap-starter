@@ -355,7 +355,7 @@ int main(int argc, char *argv[])
                 signal(SIGHUP, SIG_IGN);
                 setpgrp();
 
-                if (user.empty()) {
+                if (!user.empty()) {
                     setgid(pwd->pw_gid);
                     setuid(pwd->pw_uid);
                 }
