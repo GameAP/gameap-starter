@@ -529,6 +529,16 @@ int main(int argc, char *argv[])
     }
     else if (cmd_type == "run") {
 #ifdef __linux__
+        passwd * pwd;
+        if (!user.empty()) {
+            pwd = getpwnam(&user[0]);
+
+            if (pwd == nullptr) {
+                std::cerr << "Invalid user" << std::endl;
+                return 1;
+            }
+        }
+
         umask(0);
         setsid();
 
