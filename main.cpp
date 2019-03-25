@@ -527,7 +527,6 @@ int main(int argc, char *argv[])
             fs::remove(GAS_PID_FILE);
         }
     }
-#ifdef _WIN32
     else if (cmd_type == "run") {
         try {
             run();
@@ -536,7 +535,6 @@ int main(int argc, char *argv[])
 			exit(1);
         }
     }
-#endif
     else if (cmd_type == "status") {
         bool active = server_status();
 
