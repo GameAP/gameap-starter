@@ -528,6 +528,18 @@ int main(int argc, char *argv[])
         }
     }
     else if (cmd_type == "run") {
+#ifdef __linux__
+        umask(0);
+        setsid();
+
+        signal(SIGHUP, SIG_IGN);
+        setpgrp();
+
+        if (!user.empty()) {
+            setgid(pwd->pw_gid);
+            setuid(pwd->pw_uid);
+        }
+#endif
         try {
             run();
         } catch (std::exception &e) {
