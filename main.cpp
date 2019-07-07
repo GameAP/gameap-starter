@@ -94,6 +94,60 @@ void show_help()
 
 // ---------------------------------------------------------------------
 
+std::vector<std::string> parse_args(const std::string args)
+{
+    std::vector<std::string> rargs = {};
+
+    // Means that current symbol in quotes
+    bool inpar = false;
+
+    // Value means that current symbol is escaped
+    bool escaped;
+
+    size_t prev = 0;
+    size_t size_correct = 0;
+    size_t pos = 0;
+    size_t i = 0;
+    for(auto c : args) {
+        prev = i - 1;
+        escaped = (prev > 0 && prev < args.length() && args.at(prev) == '\\');
+
+        if (c == '\\') {
+            escaped = !escaped;
+        }
+
+        if ((c == '"' || c == '\'') && !escaped) {
+            inpar = !inpar;
+        }
+
+        if (!inpar && (c == ' ')) {
+            if (pos < args.length() && (args.at(pos) == '\'' || args.at(pos) == '"')) {
+                pos++;
+                size_correct = 1;
+            } else {
+                size_correct = 0;
+            }
+
+            if (pos != i) {
+                rargs.push_back(args.substr(pos, i - pos - size_correct));
+            }
+
+            pos = i + 1;
+        }
+
+        if (i == args.size()-1) {
+            rargs.push_back(args.substr(pos, i-pos));
+        }
+
+        i++;
+    }
+
+    return rargs;
+}
+
+
+// ---------------------------------------------------------------------
+
 void run()
 {
 	fs::current_path(&directory[0]);
@@ -103,8 +157,10 @@ void run()
 
 	std::string args;
 	if (arg_start != std::string::npos) {
-		args = command.substr(arg_start, command.size());
+		args = command.substr(arg_start+1, command.size());
 	}
+
+    std::vector<std::string> vec_args = parse_args(args);
 
     // Create and trunc stdout.txt
     {
@@ -120,7 +176,7 @@ void run()
     bp::opstream in;
 
     bp::child c(exe,
-                bp::args={args},
+                bp::args(vec_args),
                 (bp::std_out & bp::std_err) > GAS_OUTPUT_FILE,
                 bp::std_in < pipe_in,
                 ios,
