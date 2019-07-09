@@ -37,6 +37,7 @@
 
 #include <boost/filesystem.hpp>
 #include <boost/process.hpp>
+#include <boost/asio.hpp>
 #include <boost/iostreams/stream.hpp>
 
 #include "proc.h"
@@ -94,6 +95,17 @@ void show_help()
 
 // ---------------------------------------------------------------------
 
+/**
+ * Parse string args to vector args
+ *
+ * Example
+ *  "./script.sh command 'with space' --opt-one=1 --opt-two=2"
+ *  ->  [0] ./script.sh
+ *      [1] command
+ *      [1] with space
+ *      [2] --opt-one=1
+ *      [3] --opt-two=2
+ */
 std::vector<std::string> parse_args(const std::string args)
 {
     std::vector<std::string> rargs = {};
@@ -135,8 +147,15 @@ std::vector<std::string> parse_args(const std::string args)
             pos = i + 1;
         }
 
-        if (i == args.size()-1) {
-            rargs.push_back(args.substr(pos, i-pos));
+        if (i == args.size() -1) {
+            if (pos < args.length() && (args.at(pos) == '\'' || args.at(pos) == '"')) {
+                pos++;
+                size_correct = 1;
+            } else {
+                size_correct = 0;
+            }
+
+            rargs.push_back(args.substr(pos, i - pos - size_correct + 1));
         }
 
         i++;
