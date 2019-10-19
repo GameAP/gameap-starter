@@ -1,7 +1,6 @@
 #ifdef __linux__
 #include <unistd.h>
 #include <glob.h>
-#include <dirent.h>
 #include <signal.h>
 #endif
 
@@ -17,12 +16,10 @@
 #include <string>
 #endif
 
-#include <stdio.h>
 #include <iostream>
 #include <cstring>
-#include <stdlib.h>
+#include <cstdlib>
 #include <map>
-#include <fstream>
 #include <sstream>
 
 #include "proc.h"
@@ -33,7 +30,6 @@
 
 namespace fs = boost::filesystem;
 
-#define PROC_PPID_LINE_NUM      6
 #define PROC_PPID_VALUE_NUM     1
 
 // ---------------------------------------------------------------------
@@ -41,7 +37,7 @@ namespace fs = boost::filesystem;
 std::map<int, std::list<int>> process_childs()
 {
     int cpid = 0;
-    std::map<int, std::list<int>> childs;
+    std::map<int, std::list<int>> childs = std::map<int, std::list<int>>();
 
     auto explode = [](std::string const & s, char delim) {
         std::istringstream iss(s);
@@ -87,17 +83,24 @@ std::map<int, std::list<int>> process_childs()
 
         std::vector<std::string> result = explode(buf, '\n');
 
-        if (result.size() <= PROC_PPID_LINE_NUM) {
+        if (result.empty()) {
             continue;
         }
 
-        std::vector<std::string> ppid_result = explode(result[PROC_PPID_LINE_NUM], '\t');
+        std::vector<std::string> ppid_result;
+
+        for (const auto line: result) {
+            if (line.substr(0, 4) == "PPid") {
+                ppid_result = explode(line, '\t');
+                break;
+            }
+        }
 
         if (ppid_result.size() <= PROC_PPID_VALUE_NUM) {
             continue;
         }
 
-        int parent_pid = std::stoi(ppid_result[PROC_PPID_VALUE_NUM]);;
+        int parent_pid = std::stoi(ppid_result[PROC_PPID_VALUE_NUM]);
 
         if (parent_pid > 0) {
             if (childs.find(parent_pid) == childs.end()) {
