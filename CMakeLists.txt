@@ -9,7 +9,9 @@
 
 cmake_minimum_required(VERSION 2.8)
 
-add_definitions(-std=c++11)
+if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_GNUCXX)
+	add_definitions(-std=c++11)
+endif()
 
 if (BUILD_STATIC)
 	set(BUILD_STATIC_BOOST ON)
@@ -21,7 +23,10 @@ if (BUILD_STATIC)
 	endif()
 
 	set(BUILD_SHARED_LIBS OFF)
-	set(CMAKE_EXE_LINKER_FLAGS "-static -static-libgcc -static-libstdc++")
+	
+	if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_GNUCXX)
+		set(CMAKE_EXE_LINKER_FLAGS "-static -static-libgcc -static-libstdc++")
+	endif()
 endif()
 
 if (BUILD_STATIC_BOOST)
@@ -45,14 +50,14 @@ add_executable(starter
     main.cpp
 )
 
-
 if (BUILD_STATIC)
 	set_target_properties(starter PROPERTIES LINK_SEARCH_START_STATIC 1)
 	set_target_properties(starter PROPERTIES LINK_SEARCH_END_STATIC 1)
 endif()
 
-target_link_libraries (starter pthread boost_system boost_filesystem boost_iostreams)
-# target_link_libraries (starter boost_system-mgw49-mt boost_iostreams-mgw49-mt boost_filesystem-mgw49-mt)
+target_link_libraries (starter pthread ${BOOST_LIBS})
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC" )
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC" )
+if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_GNUCXX)
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC" )
+	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC" )
+endif()

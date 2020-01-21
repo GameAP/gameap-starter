@@ -1,19 +1,9 @@
+#include "proc.h"
+
 #ifdef __linux__
 #include <unistd.h>
 #include <glob.h>
 #include <signal.h>
-#endif
-
-#ifdef _WIN32
-
-#include <windows.h>
-#include <boost/format.hpp>
-#include <boost/algorithm/string.hpp>
-
-#include <cstdio>
-#include <memory>
-#include <stdexcept>
-#include <string>
 #endif
 
 #include <iostream>
@@ -22,7 +12,17 @@
 #include <map>
 #include <sstream>
 
-#include "proc.h"
+#ifdef _WIN32
+
+#include <boost/format.hpp>
+#include <boost/algorithm/string.hpp>
+#include <windows.h>
+
+#include <cstdio>
+#include <memory>
+#include <stdexcept>
+#include <string>
+#endif
 
 #ifdef __linux__
 

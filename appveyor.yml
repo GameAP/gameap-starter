@@ -43,6 +43,7 @@ install:
   # Boost libraries
   - vcpkg install boost-system:%platform%-windows
                   boost-process:%platform%-windows
+                  boost-format:%platform%-windows
 
   - cd %APPVEYOR_BUILD_FOLDER%
   - git submodule -q update --init
