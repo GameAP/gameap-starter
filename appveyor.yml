@@ -62,7 +62,6 @@ build_script:
     -DCMAKE_BUILD_TYPE=%configuration%
     -DBUILD_TESTING=ON ..
   - cmake --build . --config %configuration%
-  - ctest
 
 after_build:
   - 7z a gameap-starter-%platform%-%CONFIGURATION_LC%.zip %APPVEYOR_BUILD_FOLDER%\build\bin\*.exe %APPVEYOR_BUILD_FOLDER%\build\bin\*.dll
