@@ -6,7 +6,9 @@
 #include <map>
 #include <list>
 
-// typedef unsigned long pid_t;
+#ifdef _WIN32
+typedef int pid_t;
+#endif
 
 pid_t find_pid_by_path(const char *path);
 void killall(const char *path);

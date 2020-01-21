@@ -1,5 +1,3 @@
-#include "proc.h"
-
 #ifdef __linux__
 #include <unistd.h>
 #include <glob.h>
@@ -13,16 +11,16 @@
 #include <sstream>
 
 #ifdef _WIN32
+    #include <boost/format.hpp>
+    #include <boost/algorithm/string.hpp>
 
-#include <boost/format.hpp>
-#include <boost/algorithm/string.hpp>
-#include <windows.h>
-
-#include <cstdio>
-#include <memory>
-#include <stdexcept>
-#include <string>
+    #include <cstdio>
+    #include <memory>
+    #include <stdexcept>
+    #include <string>
 #endif
+
+#include "proc.h"
 
 #ifdef __linux__
 
@@ -302,7 +300,7 @@ unsigned int count_proc_in_path(const char *path)
         }
     }
     
-    std::cout << "count_proc_in_path: " << pid << std::endl;
+    std::cout << "count_proc_in_path: " << pcount << std::endl;
 
     return pcount;
 }
