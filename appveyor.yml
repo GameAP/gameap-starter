@@ -42,6 +42,9 @@ install:
   
   # Boost libraries
   - vcpkg install boost-system:%platform%-windows
+                  boost-filesystem:%platform%-windows
+                  boost-iostreams:%platform%-windows
+                  boost-thread:%platform%-windows
                   boost-process:%platform%-windows
                   boost-format:%platform%-windows
 
