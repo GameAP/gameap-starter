@@ -1,24 +1,29 @@
 #ifdef __linux__
 #include <unistd.h>
 #include <glob.h>
+#include <dirent.h>
 #include <signal.h>
 #endif
 
+#ifdef _WIN32
+
+#include <windows.h>
+#include <boost/format.hpp>
+#include <boost/algorithm/string.hpp>
+
+#include <cstdio>
+#include <memory>
+#include <stdexcept>
+#include <string>
+#endif
+
+#include <stdio.h>
 #include <iostream>
 #include <cstring>
-#include <cstdlib>
+#include <stdlib.h>
 #include <map>
+#include <fstream>
 #include <sstream>
-
-#ifdef _WIN32
-    #include <boost/format.hpp>
-    #include <boost/algorithm/string.hpp>
-
-    #include <cstdio>
-    #include <memory>
-    #include <stdexcept>
-    #include <string>
-#endif
 
 #include "proc.h"
 
@@ -28,6 +33,7 @@
 
 namespace fs = boost::filesystem;
 
+#define PROC_PPID_LINE_NUM      6
 #define PROC_PPID_VALUE_NUM     1
 
 // ---------------------------------------------------------------------
@@ -35,7 +41,7 @@ namespace fs = boost::filesystem;
 std::map<int, std::list<int>> process_childs()
 {
     int cpid = 0;
-    std::map<int, std::list<int>> childs = std::map<int, std::list<int>>();
+    std::map<int, std::list<int>> childs;
 
     auto explode = [](std::string const & s, char delim) {
         std::istringstream iss(s);
@@ -81,24 +87,17 @@ std::map<int, std::list<int>> process_childs()
 
         std::vector<std::string> result = explode(buf, '\n');
 
-        if (result.empty()) {
+        if (result.size() <= PROC_PPID_LINE_NUM) {
             continue;
         }
 
-        std::vector<std::string> ppid_result;
-
-        for (const auto line: result) {
-            if (line.substr(0, 4) == "PPid") {
-                ppid_result = explode(line, '\t');
-                break;
-            }
-        }
+        std::vector<std::string> ppid_result = explode(result[PROC_PPID_LINE_NUM], '\t');
 
         if (ppid_result.size() <= PROC_PPID_VALUE_NUM) {
             continue;
         }
 
-        int parent_pid = std::stoi(ppid_result[PROC_PPID_VALUE_NUM]);
+        int parent_pid = std::stoi(ppid_result[PROC_PPID_VALUE_NUM]);;
 
         if (parent_pid > 0) {
             if (childs.find(parent_pid) == childs.end()) {
