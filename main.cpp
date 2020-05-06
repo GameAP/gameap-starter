@@ -233,6 +233,11 @@ void run()
 
     if (!no_stdin) {
         while(c.running()) {
+            if (fs::file_size(GAS_INPUT_FILE) <= 0) {
+                std::this_thread::sleep_for(std::chrono::seconds(1));
+                continue;
+            }
+
             coninput.open(GAS_INPUT_FILE, std::ifstream::in);
             getline(coninput, input_line);
 
@@ -250,8 +255,6 @@ void run()
             }
 
             coninput.close();
-
-            std::this_thread::sleep_for(std::chrono::seconds(5));
         }
     }
 
@@ -289,6 +292,11 @@ bool server_status()
     char bufread[32];
 
     pid_t pid = 0;
+
+    if (! fs::exists(&directory[0])) {
+        std::cerr << "Directory " << &directory[0] << " not found" << std::endl;
+        return false;
+    }
 
     fs::current_path(&directory[0]);
     fs::path p(&directory[0]);
